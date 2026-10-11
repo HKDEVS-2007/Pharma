@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Expiry Alert</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()" title="Minimize">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()" title="Close">&#10005;</button>
+  </div>
+</div>
+<script>
+async function toggleMax(){
+  window.api.winMaximize();
+  setTimeout(async()=>{
+    const m=await window.api.winIsMaximized();
+    const btn=document.getElementById('winMaxBtn');
+    if(btn)btn.innerHTML=m?'&#10697;':'&#9633;';
+  },80);
+}
+</script>
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>⚠ Expiry Alert</h1>
+  </div>
+  <div class="card">
+    <div class="card-title">Filter Options</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Show Expiring Within (Months)</label>
+        <input type="number" id="txtFBM" class="form-control" value="3" min="1" max="120" placeholder="e.g. 3"/>
+      </div>
+      <div class="form-group">
+        <label>Filter by Category</label>
+        <select id="cmbCat" class="form-control"><option value="">-- All Categories --</option></select>
+      </div>
+      <div class="form-group" style="align-self:flex-end;display:flex;gap:8px;">
+        <button class="btn btn-warning" id="btnSet">✔ Apply Filter</button>
+        <button class="btn btn-secondary" id="btnUnSet">✖ Reset</button>
+      </div>
+    </div>
+    <div id="filterStatus" style="margin-top:10px;font-size:13px;color:#757575;background:#f5f7fa;padding:8px 12px;border-radius:6px;border-left:3px solid #f57f17;">
+      Showing medicines expiring within <b>3</b> months.
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card" style="border-left-color:#c62828"><div class="stat-label">Already Expired</div><div class="stat-value" id="cntExpired" style="color:#c62828">0</div></div>
+    <div class="stat-card" style="border-left-color:#f57f17"><div class="stat-label">Expiring Soon</div><div class="stat-value" id="cntSoon" style="color:#f57f17">0</div></div>
+    <div class="stat-card" style="border-left-color:#2e7d32"><div class="stat-label">In Range (OK)</div><div class="stat-value" id="cntOk" style="color:#2e7d32">0</div></div>
+    <div class="stat-card"><div class="stat-label">Total Found</div><div class="stat-value" id="cntTotal">0</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Medicines Near Expiry</div>
+    <div class="table-wrapper">
+      <table class="dgv">
+        <thead><tr><th>ID</th><th>Medicine Name</th><th>Salt</th><th>Category</th><th>Qty</th><th>Expiry Date</th><th>Days Left</th><th>Status</th></tr></thead>
+        <tbody id="eaBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('expiryalert'); loadTopBar();
+
+async function loadCategories() {
+  const cats = await window.api.getCategories();
+  const sel = document.getElementById('cmbCat');
+  cats.forEach(c => sel.innerHTML += `<option value="${c.categoryname}">${c.categoryname}</option>`);
+}
+
+async function loadExpiry() {
+  const months = parseInt(document.getElementById('txtFBM').value) || 3;
+  const category = document.getElementById('cmbCat').value || null;
+
+  const meds = await window.api.getExpiryAlert({ months, category });
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tbody = document.getElementById('eaBody');
+  tbody.innerHTML = '';
+
+  let cntExpired=0, cntSoon=0, cntOk=0;
+
+  meds.forEach(med => {
+    const expDate = new Date(med.expiry); expDate.setHours(0,0,0,0);
+    const diffDays = Math.ceil((expDate - today) / (1000*60*60*24));
+    let statusBadge, rowStyle='';
+
+    if (diffDays < 0) {
+      statusBadge = '<span class="badge badge-danger">Expired</span>';
+      rowStyle = 'background:#ffebee;'; cntExpired++;
+    } else if (diffDays <= 30) {
+      statusBadge = '<span class="badge badge-danger">Critical</span>';
+      rowStyle = 'background:#fff3e0;'; cntSoon++;
+    } else if (diffDays <= 90) {
+      statusBadge = '<span class="badge badge-warning">Soon</span>';
+      cntSoon++;
+    } else {
+      statusBadge = '<span class="badge badge-success">OK</span>';
+      cntOk++;
+    }
+
+    const daysText = diffDays < 0 ? `<span style="color:#c62828;font-weight:700;">${Math.abs(diffDays)} days ago</span>` : `<span style="font-weight:700;">${diffDays} days</span>`;
+
+    const tr = document.createElement('tr');
+    if (rowStyle) tr.setAttribute('style', rowStyle);
+    tr.innerHTML = `<td>${med.id}</td><td><b>${med.medicinename}</b></td><td style="color:#00897b">${med.salt||''}</td><td>${med.medicinecategory||''}</td><td>${med.quantity}</td><td>${med.expiry||''}</td><td>${daysText}</td><td>${statusBadge}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('cntExpired').textContent = cntExpired;
+  document.getElementById('cntSoon').textContent = cntSoon;
+  document.getElementById('cntOk').textContent = cntOk;
+  document.getElementById('cntTotal').textContent = meds.length;
+
+  const catLabel = category ? ` in category <b>${category}</b>` : '';
+  document.getElementById('filterStatus').innerHTML =
+    `Showing medicines expiring within <b>${months}</b> month(s) from today${catLabel}. Found: <b>${meds.length}</b> item(s).`;
+}
+
+document.getElementById('btnSet').onclick = loadExpiry;
+document.getElementById('txtFBM').addEventListener('keydown', e => { if(e.key==='Enter') loadExpiry(); });
+
+document.getElementById('btnUnSet').onclick = () => {
+  document.getElementById('txtFBM').value = '3';
+  document.getElementById('cmbCat').value = '';
+  loadExpiry();
+};
+
+loadCategories().then(() => loadExpiry());
+</script>
+</body>
+</html>

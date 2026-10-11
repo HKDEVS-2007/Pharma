@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Categories</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()" title="Minimize">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()" title="Close">&#10005;</button>
+  </div>
+</div>
+<script>
+async function toggleMax(){
+  window.api.winMaximize();
+  setTimeout(async()=>{
+    const m=await window.api.winIsMaximized();
+    const btn=document.getElementById('winMaxBtn');
+    if(btn)btn.innerHTML=m?'&#10697;':'&#9633;';
+  },80);
+}
+</script>
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>🗂 Categories</h1>
+  </div>
+  
+  <div class="glass-card">
+    <div class="card-title">Add / Edit Category</div>
+    <div id="alertMsg" class="alert"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Category Name *</label>
+        <input type="text" id="txtCatName" class="form-control" placeholder="e.g. Antibiotics"/>
+      </div>
+      <div class="form-group">
+        <label>Category Unit</label>
+        <input type="text" id="txtCatUnit" class="form-control" placeholder="e.g. Strip, Bottle"/>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Description</label>
+        <input type="text" id="txtDescription" class="form-control" placeholder="Optional description"/>
+      </div>
+    </div>
+    <div class="flex gap-4 mt-8">
+      <button class="btn btn-primary" id="btnAdd">➕ Add Category</button>
+      <button class="btn btn-warning" id="btnUpdate">✏ Update</button>
+      <button class="btn btn-danger" id="btnDelete">🗑 Delete</button>
+      <button class="btn btn-secondary" id="btnClear" onclick="clearForm()">✖ Clear</button>
+    </div>
+  </div>
+  
+  <div class="glass-card">
+    <div class="card-title" style="margin-bottom:24px">Categories List</div>
+    <div class="table-wrapper">
+      <table class="dgv">
+        <thead><tr><th>ID</th><th>Category Name</th><th>Unit</th><th>Description</th></tr></thead>
+        <tbody id="catBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('categories'); loadTopBar();
+let selectedId = null;
+
+async function loadCategories() {
+  const cats = await window.api.getCategories();
+  buildTable('catBody', cats, [
+    {key:'id'},{key:'categoryname'},{key:'categoryunit'},{key:'description'}
+  ]);
+  document.getElementById('catBody').addEventListener('row-selected', e => {
+    const r = e.detail;
+    selectedId = r.id;
+    document.getElementById('txtCatName').value = r.categoryname||'';
+    document.getElementById('txtCatUnit').value = r.categoryunit||'';
+    document.getElementById('txtDescription').value = r.description||'';
+  });
+}
+
+function clearForm() {
+  selectedId = null;
+  document.getElementById('txtCatName').value='';
+  document.getElementById('txtCatUnit').value='';
+  document.getElementById('txtDescription').value='';
+}
+
+function getFormData() {
+  return {
+    categoryname: document.getElementById('txtCatName').value.trim(),
+    categoryunit: document.getElementById('txtCatUnit').value.trim(),
+    description: document.getElementById('txtDescription').value.trim()
+  };
+}
+
+document.getElementById('btnAdd').onclick = async () => {
+  const d = getFormData();
+  if (!d.categoryname) { showAlert('alertMsg','Category name is required.'); return; }
+  await window.api.addCategory(d);
+  showAlert('alertMsg','Category added successfully!','success');
+  clearForm(); loadCategories();
+};
+
+document.getElementById('btnUpdate').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Please select a category to update.'); return; }
+  const d = getFormData(); d.id = selectedId;
+  if (!d.categoryname) { showAlert('alertMsg','Category name is required.'); return; }
+  await window.api.updateCategory(d);
+  showAlert('alertMsg','Category updated!','success');
+  clearForm(); loadCategories();
+};
+
+document.getElementById('btnDelete').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Please select a category to delete.'); return; }
+  if (!confirm('Delete this category?')) return;
+  await window.api.deleteCategory(selectedId);
+  showAlert('alertMsg','Category deleted.','success');
+  clearForm(); loadCategories();
+};
+
+loadCategories();
+</script>
+</body>
+</html>

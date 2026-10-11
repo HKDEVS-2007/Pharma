@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Network Connectivity</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  .network-grid { display: grid; grid-template-columns: 1fr 350px; gap: 32px; align-items: flex-start; }
+  
+  .mode-selection { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  .mode-card { 
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .mode-card:hover { border-color: var(--primary); transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+  .mode-card.selected { 
+    border-color: var(--primary); 
+    background: var(--primary-glow);
+    box-shadow: 0 0 0 4px var(--primary-glow);
+  }
+  .mode-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 12px;
+  }
+
+  .mode-icon { font-size: 48px; margin-bottom: 20px; }
+  .mode-title { font-size: 18px; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
+  .mode-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .status-banner {
+    padding: 24px 32px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+  }
+  .status-indicator { width: 12px; height: 12px; border-radius: 50%; background: var(--text-muted); position: relative; }
+  .status-indicator.online { background: var(--secondary); box-shadow: 0 0 12px var(--secondary-glow); }
+  .status-indicator.online::after {
+    content: '';
+    position: absolute;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: inherit;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+
+  .config-panel { animation: slideUp 0.4s ease; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  .ip-badge-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ip-badge { 
+    background: rgba(0,0,0,0.2); 
+    padding: 6px 12px; 
+    border-radius: 6px; 
+    font-family: monospace; 
+    font-size: 13px; 
+    color: var(--primary);
+    border: 1px solid var(--border-color);
+  }
+
+  .wizard-step { display: flex; gap: 16px; margin-bottom: 24px; }
+  .step-marker { 
+    width: 28px; height: 28px; 
+    background: var(--primary-glow); 
+    color: var(--primary); 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-weight: 800; 
+    flex-shrink: 0; 
+    font-size: 13px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+  .step-text b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .step-text p { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+  .conn-status-box {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('settings')">Settings</button>
+    <h1>🌐 Network Connectivity</h1>
+  </div>
+
+  <div class="network-grid">
+    <div class="main-column">
+      
+      <!-- Current Status Banner -->
+      <div class="status-banner">
+        <div class="status-indicator online" id="mainStatusDot"></div>
+        <div style="flex:1">
+          <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--text-muted); letter-spacing:1px;">Connection Status</div>
+          <div id="statusText" style="font-size:16px; font-weight:700;">Analyzing network configuration...</div>
+        </div>
+        <div id="statusBadge" class="badge" style="background:var(--primary-glow); color:var(--primary);">LOCAL</div>
+      </div>
+
+      <!-- Mode Selection -->
+      <div class="mode-selection">
+        <div class="mode-card" id="cardLocal" onclick="selectMode('local')">
+          <div class="mode-icon">🖥️</div>
+          <div class="mode-title">Admin / Server</div>
+          <div class="mode-desc">This machine hosts the primary database and serves data to other computers on your network.</div>
+        </div>
+        <div class="mode-card" id="cardNetwork" onclick="selectMode('network')">
+          <div class="mode-icon">💻</div>
+          <div class="mode-title">User / Client</div>
+          <div class="mode-desc">This machine connects to an Admin PC over LAN to process sales and view live stock.</div>
+        </div>
+      </div>
+
+      <!-- Server Configuration Panel -->
+      <div id="localConfig" class="config-panel" style="display:none;">
+        <div class="glass-card">
+          <div class="card-title">Server Configuration</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Service Port</label>
+              <input type="number" id="serverPort" class="form-control" value="7272" min="1024" max="65535"/>
+              <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Default port is 7272. Change only if blocked by firewall.</p>
+            </div>
+          </div>
+          
+          <div class="mt-8 p-6" style="background:rgba(0,0,0,0.1); border-radius:var(--radius-md); border:1px solid var(--border-color);">
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:12px;">Active Network Entry Points</div>
+            <div id="localIPs" class="ip-badge-list">
+              <!-- IPs injected here -->
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:16px;">
+              💡 Other computers must use one of these addresses to sync with this Admin PC.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client Configuration Panel -->
+      <div id="networkConfig" class="config-panel" style="display:none;">
+        <div class="glass-card">
+          <div class="card-title">Client Setup Wizard</div>
+          
+          <div class="wizard-step">
+            <div class="step-marker">1</div>
+            <div class="step-text">
+              <b>Verify Admin PC Status</b>
+              <p>Ensure the main Admin PC is switched on, running Pharmco, and set to Server Mode.</p>
+            </div>
+          </div>
+          
+          <div class="wizard-step">
+            <div class="step-marker">2</div>
+            <div class="step-text">
+              <b>Locate Server Address</b>
+              <p>Check the Network Settings on the Admin PC to find its LAN IP address (e.g., 192.168.1.10).</p>
+            </div>
+          </div>
+          
+          <div class="wizard-step">
+            <div class="step-marker">3</div>
+            <div class="step-text">
+              <b>Establish Link</b>
+              <p>Enter the full server URL below and test the connection.</p>
+            </div>
+          </div>
+
+          <div class="form-group mt-4">
+            <label>Admin Server URL</label>
+            <div class="flex gap-4">
+              <input type="text" id="serverUrl" class="form-control" placeholder="http://192.168.1.10:7272" style="font-family:monospace; flex:1;"/>
+              <button class="btn btn-secondary" onclick="testConn()">Test Connection</button>
+            </div>
+          </div>
+
+          <div id="connStatus" class="conn-status-box"></div>
+        </div>
+      </div>
+
+      <div class="flex gap-4 mt-8">
+        <button class="btn btn-primary" id="btnApply" onclick="applyConfig()">Apply & Sync Settings</button>
+        <button class="btn btn-secondary" onclick="window.api.navigate('settings')">Discard Changes</button>
+      </div>
+      <div id="alertMsg" class="alert mt-4"></div>
+
+    </div>
+
+    <!-- Side Information Panel -->
+    <div class="info-column">
+      <div class="glass-card" style="padding: 24px;">
+        <div class="card-title" style="font-size: 16px;">How Syncing Works</div>
+        <div style="font-size: 13px; color: var(--text-muted); line-height: 1.8;">
+          <p>The <b>Admin PC</b> acts as the single source of truth. All data transactions are processed there.</p>
+          <br/>
+          <p><b>User PCs</b> act as interactive windows. They don't store data locally but fetch it instantly from the Admin PC.</p>
+          <br/>
+          <p><b>Network Requirements:</b> All devices must be on the same local network (WiFi or Ethernet) to communicate.</p>
+        </div>
+      </div>
+
+      <div class="glass-card mt-4" style="padding: 24px; border-left: 4px solid var(--accent);">
+        <div style="font-size: 12px; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 8px;">Network Tip</div>
+        <p style="font-size: 12px; color: var(--text-muted);">If connection fails, check if the <b>Windows Firewall</b> is blocking port 7272 on the Admin PC.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('settings');
+loadTopBar();
+
+let currentMode = 'local';
+
+async function loadStatus() {
+  const info = await window.api.getNetworkMode();
+  currentMode = info.mode;
+
+  const statusText = document.getElementById('statusText');
+  const statusBadge = document.getElementById('statusBadge');
+  const dot = document.getElementById('mainStatusDot');
+
+  if (info.mode === 'local') {
+    statusText.textContent = `Running as Server (Port ${info.serverPort})`;
+    statusBadge.textContent = 'SERVER';
+    statusBadge.style.background = 'var(--secondary-glow)';
+    statusBadge.style.color = 'var(--secondary)';
+    selectMode('local');
+    document.getElementById('serverPort').value = info.serverPort || 7272;
+  } else {
+    statusText.textContent = `Connected to ${info.serverUrl}`;
+    statusBadge.textContent = 'CLIENT';
+    selectMode('network');
+    document.getElementById('serverUrl').value = info.serverUrl || '';
+  }
+
+  // Update IP List
+  const ipsEl = document.getElementById('localIPs');
+  if (info.localIPs && info.localIPs.length > 0) {
+    const port = document.getElementById('serverPort').value || 7272;
+    ipsEl.innerHTML = info.localIPs.map(ip => `<div class="ip-badge">http://${ip}:${port}</div>`).join('');
+  } else {
+    ipsEl.innerHTML = '<span style="color:var(--danger); font-size:12px;">⚠ No local network found.</span>';
+  }
+}
+
+function selectMode(mode) {
+  currentMode = mode;
+  document.getElementById('cardLocal').classList.toggle('selected', mode === 'local');
+  document.getElementById('cardNetwork').classList.toggle('selected', mode === 'network');
+  document.getElementById('localConfig').style.display   = mode === 'local'   ? 'block' : 'none';
+  document.getElementById('networkConfig').style.display = mode === 'network' ? 'block' : 'none';
+}
+
+async function testConn() {
+  const url = document.getElementById('serverUrl').value.trim();
+  if (!url) { showAlert('alertMsg','Enter a server URL first.'); return; }
+  
+  const statusBox = document.getElementById('connStatus');
+  statusBox.style.display = 'block';
+  statusBox.style.background = 'rgba(255,255,255,0.05)';
+  statusBox.style.color = 'var(--text-main)';
+  statusBox.innerHTML = '⏳ Attempting to handshake with Admin PC...';
+  
+  const result = await window.api.testConnection(url);
+  if (result.ok) {
+    statusBox.style.background = 'rgba(16, 185, 129, 0.1)';
+    statusBox.style.color = 'var(--secondary)';
+    statusBox.innerHTML = '✅ Link Established! Connection is stable.';
+  } else {
+    statusBox.style.background = 'rgba(239, 68, 68, 0.1)';
+    statusBox.style.color = 'var(--danger)';
+    statusBox.innerHTML = '❌ Connection Refused. Ensure Admin PC is reachable on port 7272.';
+  }
+}
+
+async function applyConfig() {
+  let cfg;
+  if (currentMode === 'local') {
+    const port = parseInt(document.getElementById('serverPort').value) || 7272;
+    cfg = { mode: 'local', port };
+  } else {
+    const serverUrl = document.getElementById('serverUrl').value.trim();
+    if (!serverUrl) { showAlert('alertMsg','Server URL is required for Client mode.'); return; }
+    cfg = { mode: 'network', serverUrl };
+  }
+
+  if (!confirm(`Switching to ${currentMode.toUpperCase()} mode will restart the application. Continue?`)) return;
+  await window.api.applyNetworkMode(cfg);
+}
+
+// Update IP display when port changes
+document.getElementById('serverPort').addEventListener('input', () => {
+  const port = document.getElementById('serverPort').value || 7272;
+  window.api.getNetworkMode().then(info => {
+    const ipsEl = document.getElementById('localIPs');
+    ipsEl.innerHTML = (info.localIPs||[]).map(ip => `<div class="ip-badge">http://${ip}:${port}</div>`).join('');
+  });
+});
+
+loadStatus();
+</script>
+</body>
+</html>

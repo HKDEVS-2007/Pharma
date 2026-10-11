@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Select Medicine</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  body { 
+    margin:0; padding:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; 
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-app);
+    color: var(--text-main);
+  }
+
+  /* Quantum Header */
+  .medsel-header {
+    height: 44px;
+    background: linear-gradient(135deg, var(--primary), #a855f7);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    -webkit-app-region: drag;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 100;
+  }
+  .medsel-title {
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .medsel-close {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-app-region: no-drag;
+    font-size: 14px;
+  }
+  .medsel-close:hover {
+    background: var(--danger);
+    transform: scale(1.1);
+  }
+
+  /* Shortcut Bar */
+  .shortcut-bar {
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 16px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .kbd-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .kbd-key {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    border-bottom-width: 3px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-main);
+    font-family: monospace;
+    font-size: 12px;
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  }
+
+  .sel-body { 
+    flex:1; padding:16px; display:flex; flex-direction:column; gap:12px; overflow:hidden; 
+  }
+  
+  .glass-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--bg-surface);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .search-row { display:flex; gap:10px; }
+  .tbl-wrap { 
+    flex:1; overflow:auto; border-radius:var(--radius-md); 
+    border:1px solid var(--border-color); 
+    background: rgba(0,0,0,0.1);
+  }
+
+  /* Table Polish */
+  table.dgv thead { position: sticky; top: 0; z-index: 10; background: var(--bg-sidebar); }
+  table.dgv th { padding: 12px 16px; font-size: 11px; }
+  table.dgv td { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+
+  /* High Contrast Selection */
+  table.dgv tbody tr { transition: all 0.1s; cursor: pointer; }
+  table.dgv tbody tr.selected { 
+    background: var(--primary) !important; 
+    color: #ffffff !important;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.2), 0 0 10px var(--primary-glow);
+    transform: scale(1.005);
+    position: relative;
+    z-index: 5;
+  }
+  table.dgv tbody tr.selected td { color:#ffffff !important; font-weight:700; border-bottom: none; }
+  table.dgv tbody tr.selected .badge { 
+    background: rgba(255,255,255,0.25) !important; 
+    color: white !important;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+
+  /* Row colours for out/low stock */
+  body.dark-theme table.dgv tbody tr.row-out { background: rgba(239, 68, 68, 0.1); }
+  body.dark-theme table.dgv tbody tr.row-low { background: rgba(245, 158, 11, 0.1); }
+  body.light-theme table.dgv tbody tr.row-out { background: #fee2e2; }
+  body.light-theme table.dgv tbody tr.row-low { background: #fef3c7; }
+
+  /* Pill Badges */
+  .badge {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<header class="medsel-header">
+  <div class="medsel-title">💊 Select Medicine</div>
+  <button class="medsel-close" onclick="window.api.closeMedSelection()" title="Close (Esc)">✕</button>
+</header>
+
+<div class="shortcut-bar">
+  <div class="kbd-hint"><span class="kbd-key">↑↓</span> NAVIGATE</div>
+  <div class="kbd-hint"><span class="kbd-key">Enter</span> SELECT</div>
+  <div class="kbd-hint"><span class="kbd-key">Esc</span> CLOSE</div>
+</div>
+
+<div class="sel-body">
+  <div class="glass-container">
+    <div class="search-row">
+      <div style="flex:2; position:relative">
+        <input type="text" id="txtSearch" class="form-control w-full" placeholder="Search by name..." autofocus style="padding-left:35px"/>
+        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:0.5">🔍</span>
+      </div>
+      <input type="text" id="txtSaltSearch" class="form-control" placeholder="Salt / Generic..." style="flex:1"/>
+      <input type="text" id="txtBatchNo" class="form-control" placeholder="Batch No..." style="flex:1"/>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="dgv">
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Salt</th><th>Category</th>
+            <th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="medBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+// Apply theme (no topbar on this popup)
+(function(){
+  const t=localStorage.getItem('pharmco_theme')||'light';
+  document.body.classList.toggle('dark-theme',t==='dark');
+  document.documentElement.classList.remove('dark-pre');
+})();
+
+let medicines = [];
+let highlighted = -1;
+
+async function loadMeds(search='', saltSearch='') {
+  let meds = await window.api.getMedicines(search);
+  if (saltSearch) meds = meds.filter(m => m.salt && m.salt.toLowerCase().includes(saltSearch.toLowerCase()));
+  medicines = meds;
+  renderMedTable();
+  highlighted = medicines.length > 0 ? 0 : -1;
+  highlightRow();
+}
+
+function renderMedTable() {
+  const tbody = document.getElementById('medBody');
+  tbody.innerHTML = '';
+  medicines.forEach((med, idx) => {
+    const isOut = med.quantity <= 0;
+    const isLow = !isOut && med.quantity <= (med.lowstockthreshold || 10);
+    const tr = document.createElement('tr');
+    if (isOut) tr.classList.add('row-out');
+    else if (isLow) tr.classList.add('row-low');
+    
+    const statusBadge = isOut
+      ? '<span class="badge badge-danger">Out</span>'
+      : isLow
+        ? '<span class="badge badge-warning">Low</span>'
+        : '<span class="badge badge-success">OK</span>';
+
+    tr.innerHTML = `
+      <td style="opacity:0.6; font-size:11px;">${med.id}</td>
+      <td><span style="font-weight:700">${med.medicinename}</span></td>
+      <td style="font-size:11px; opacity:0.8">${med.salt||''}</td>
+      <td style="font-size:11px;">${med.medicinecategory||''}</td>
+      <td>${med.batchno||''}</td>
+      <td style="font-size:11px;">${med.expiry||''}</td>
+      <td style="font-weight:800">${med.quantity}</td>
+      <td style="color:var(--secondary); font-weight:700">${parseFloat(med.saleprice||0).toFixed(2)}</td>
+      <td>${statusBadge}</td>`;
+      
+    tr.addEventListener('click', () => { highlighted=idx; highlightRow(); selectMed(med); });
+    tbody.appendChild(tr);
+  });
+}
+
+function highlightRow() {
+  const rows = document.getElementById('medBody').querySelectorAll('tr');
+  rows.forEach((r,i) => r.classList.toggle('selected', i===highlighted));
+  if (highlighted>=0 && rows[highlighted]) rows[highlighted].scrollIntoView({block:'nearest'});
+}
+
+function selectMed(med) {
+  window.api.medicineChosen(med);
+}
+
+// Search handlers
+document.getElementById('txtSearch').addEventListener('input', e => {
+  highlighted=0; loadMeds(e.target.value.trim(), document.getElementById('txtSaltSearch').value.trim());
+});
+document.getElementById('txtSaltSearch').addEventListener('input', e => {
+  highlighted=0; loadMeds(document.getElementById('txtSearch').value.trim(), e.target.value.trim());
+});
+
+// Keyboard navigation on search box
+document.getElementById('txtSearch').addEventListener('keydown', e => {
+  if (e.key==='ArrowDown') { highlighted=Math.min(highlighted+1,medicines.length-1); highlightRow(); e.preventDefault(); }
+  else if (e.key==='ArrowUp') { highlighted=Math.max(highlighted-1,0); highlightRow(); e.preventDefault(); }
+  else if (e.key==='Enter') { if(highlighted>=0&&medicines[highlighted]) selectMed(medicines[highlighted]); }
+  else if (e.key==='Escape') window.api.closeMedSelection();
+});
+
+// Batch no lookup
+document.getElementById('txtBatchNo').addEventListener('keydown', async e => {
+  if (e.key==='Enter') {
+    const bn=e.target.value.trim(); if(!bn) return;
+    const med=await window.api.getMedicineByBatch(bn);
+    if(med) selectMed(med); else alert('No medicine found for batch: '+bn);
+  }
+  if (e.key==='Escape') window.api.closeMedSelection();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') window.api.closeMedSelection();
+  if (e.key==='ArrowDown'&&document.activeElement!==document.getElementById('txtSearch')) {
+    highlighted=Math.min(highlighted+1,medicines.length-1); highlightRow(); e.preventDefault();
+  }
+  if (e.key==='ArrowUp'&&document.activeElement!==document.getElementById('txtSearch')) {
+    highlighted=Math.max(highlighted-1,0); highlightRow(); e.preventDefault();
+  }
+  if (e.key==='Enter'&&document.activeElement===document.body) {
+    if(highlighted>=0&&medicines[highlighted]) selectMed(medicines[highlighted]);
+  }
+});
+
+loadMeds();
+</script>
+</body>
+</html>

@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Sale</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  /* Inner tab system for sale page */
+  .sale-tabs-nav { display:flex; gap:8px; margin-bottom:24px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 12px; }
+  .sale-tab-btn { flex: 1; padding:12px 20px; border:none; background:transparent; font-size:14px; font-weight:700;
+    color:var(--text-muted); cursor:pointer; border-radius: 8px; transition:all 0.3s; }
+  .sale-tab-btn.active { color:var(--primary); background:var(--primary-glow); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .sale-tab-panel { display:none; animation: fadeIn 0.4s ease; }
+  .sale-tab-panel.active { display:block; }
+  input[readonly].form-control { background:rgba(0,0,0,0.1); cursor:not-allowed; border-color: transparent; }
+
+  .totals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+    margin-top: 32px;
+    padding-top: 32px;
+    border-top: 1px dashed var(--border-color);
+  }
+  .total-item { display: flex; flex-direction: column; gap: 8px; }
+  .total-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .total-value-input { 
+    font-size: 24px !important; 
+    font-weight: 800 !important; 
+    padding: 0 !important; 
+    height: auto !important;
+  }
+</style>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>🛒 Point of Sale</h1>
+    <div class="flex gap-4" style="margin-left:auto;">
+      <span class="badge update-badge">F4: Print</span>
+      <span class="badge" style="background:var(--secondary); color:#fff">F5: Parallel Bill</span>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="sale-tabs-nav" id="saleTabNav">
+      <button class="sale-tab-btn active" onclick="switchSaleTab('normal',this)">Standard Checkout</button>
+      <button class="sale-tab-btn" onclick="switchSaleTab('patient',this)">Chronic Patient Sale</button>
+    </div>
+
+    <!-- ── TAB 1: NORMAL SALE ── -->
+    <div class="sale-tab-panel active" id="tab-normal">
+      <div class="bill-tabs" id="billTabs" style="margin-bottom:32px; background:rgba(0,0,0,0.1); padding: 8px;"></div>
+
+      <div id="alertMsg" class="alert"></div>
+      <div class="form-grid mb-8">
+        <div class="form-group"><label>Invoice ID</label>
+          <input type="text" id="txtBillNo" class="form-control" readonly style="color:var(--primary);"/>
+        </div>
+        <div class="form-group"><label>Customer Details</label>
+          <input type="text" id="txtCusName" class="form-control" placeholder="Name / Mobile (Optional)"/>
+        </div>
+        <div class="form-group"><label>Transaction Date</label>
+          <input type="date" id="dtpDate" class="form-control"/>
+        </div>
+      </div>
+
+      <div class="table-wrapper" style="max-height:450px; border-radius: var(--radius-md); overflow-y: auto;">
+        <table class="dgv">
+          <thead>
+            <tr>
+              <th style="width:50px">Pos</th>
+              <th>Product Description</th>
+              <th style="width:120px; text-align:center;">Qty</th>
+              <th style="width:140px; text-align:right;">Unit Price</th>
+              <th style="width:140px; text-align:right;">Line Total</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="saleBody"></tbody>
+        </table>
+      </div>
+
+      <div class="flex justify-between items-center mt-8 p-6 glass-card" style="background:rgba(99, 102, 241, 0.03); margin-bottom: 0;">
+        <div class="flex gap-8">
+          <div class="total-item">
+            <div class="total-label">Projected Profit</div>
+            <div id="billProfit" style="font-size:18px; font-weight:800; color:var(--secondary)">0.00</div>
+          </div>
+          <div class="total-item" style="border-left: 1px solid var(--border-color); padding-left: 24px;">
+            <div class="total-label">Gross Margin</div>
+            <div id="billProfitPct" style="font-size:18px; font-weight:800; color:var(--secondary)">0%</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size:10px; font-weight:800; color:var(--primary); letter-spacing:2px; margin-bottom:4px;">QUANTUM SCANNER</div>
+          <div style="font-size:11px; color:var(--text-muted);">ACTIVE & READY</div>
+        </div>
+      </div>
+
+      <div class="totals-grid">
+        <div class="total-item">
+          <label class="total-label">Net Subtotal</label>
+          <input type="text" id="txtNA" class="form-control total-value-input" readonly style="color:var(--text-main);"/>
+        </div>
+        <div class="total-item">
+          <label class="total-label">Discount (Amount)</label>
+          <input type="number" id="txtDis" class="form-control" placeholder="0.00" style="font-size: 18px; font-weight: 700;"/>
+        </div>
+        <div class="total-item">
+          <label class="total-label">Discount (%)</label>
+          <input type="number" id="txtDisPct" class="form-control" placeholder="0.0" style="font-size: 18px; font-weight: 700;"/>
+        </div>
+        <div class="total-item" style="grid-column: span 1;">
+          <label class="total-label">Grand Total Payable</label>
+          <input type="text" id="txtTA" class="form-control total-value-input" readonly style="color:var(--secondary);"/>
+        </div>
+      </div>
+      
+      <div class="flex gap-4 mt-8 justify-end">
+          <button class="btn btn-secondary" onclick="doPrint()" style="padding: 16px 32px;">🖨 Print (F4)</button>
+          <button class="btn btn-primary" id="btnSave" style="padding: 16px 48px; min-width: 220px;">💾 Finalize & Save</button>
+      </div>
+    </div>
+
+    <!-- ── TAB 2: PATIENT SALE ── -->
+    <div class="sale-tab-panel" id="tab-patient">
+       <div id="alertPatMsg" class="alert"></div>
+       <div class="form-grid mb-8">
+           <div class="form-group"><label>Select Registered Patient</label><select id="cmbPatient" class="form-control"><option value="">-- Search Registry --</option></select></div>
+           <div class="form-group"><label>Dose Duration (Days)</label><input type="number" id="txtDoseDays" class="form-control" placeholder="Cycle length"/></div>
+           <div class="form-group"><label>Course Completion</label><input type="text" id="txtDoseEnd" class="form-control" readonly style="color:var(--primary); font-weight:700;"/></div>
+       </div>
+       <div class="table-wrapper" style="border-radius: var(--radius-md);">
+        <table class="dgv"><thead><tr><th style="width:50px">#</th><th>Medicine</th><th style="width:100px; text-align:center;">Qty</th><th style="width:140px; text-align:right;">Price</th><th style="width:140px; text-align:right;">Total</th><th style="width:60px"></th></tr></thead><tbody id="patSaleBody"></tbody></table></div>
+       
+       <div class="totals-grid">
+           <div class="total-item" style="grid-column: 1 / 4;">
+              <label class="total-label">Patient Bill Total</label>
+              <input type="text" id="txtPatTA" class="form-control total-value-input" readonly style="color:var(--secondary);"/>
+           </div>
+           <div class="flex gap-4 items-end justify-end">
+              <button class="btn btn-secondary" onclick="doPatPrint()">🖨 Print</button>
+              <button class="btn btn-primary" id="btnPatSave" style="min-width: 100px;">💾 Save Patient Bill</button>
+           </div>
+       </div>
+       
+       <div id="patInfoBox" class="mt-8 p-6 glass-card" style="display:none; background:var(--primary-glow); border-color:var(--primary); border-left: 6px solid var(--primary);">
+           <div id="patInfoText" style="font-weight: 700; color: var(--text-main);"></div>
+       </div>
+       <div style="display:none"><input type="text" id="txtPatBillNo"/><input type="date" id="dtpPatDate"/><input type="number" id="txtPatDis"/><input type="number" id="txtPatDisPct"/><input type="text" id="txtPatNA"/></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('sale');
+loadTopBar();
+
+// ── STATE ────────────────────────────────────────────────────────
+let billMgr;
+let editingRow    = -1;
+let selectedRowIdx = -1;
+let currentTable  = 'normal'; // 'normal' or 'patient'
+let patItems      = [];
+
+// ── SALE TAB SWITCHER ─────────────────────────────────────────────
+function switchSaleTab(name, btn) {
+  document.querySelectorAll('.sale-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sale-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  currentTable = name;
+  if (name === 'normal') {
+    setTimeout(() => { const el=document.getElementById('qty_0'); if(el) el.focus(); }, 80);
+  } else {
+    setTimeout(() => { document.getElementById('cmbPatient').focus(); }, 80);
+  }
+}
+
+// ── BARCODE SCANNER (global capture) ─────────────────────────────
+let _bcBuf='', _bcTimer=null;
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter' && _bcBuf.length>=3) {
+    e.stopPropagation();
+    const code=_bcBuf.trim(); _bcBuf=''; clearTimeout(_bcTimer);
+    handleBarcode(code); return;
+  }
+  if (e.key.length===1 && !e.ctrlKey && !e.altKey) {
+    _bcBuf+=e.key; clearTimeout(_bcTimer);
+    _bcTimer=setTimeout(()=>{ _bcBuf=''; },150);
+  }
+}, true);
+
+async function handleBarcode(code) {
+  const med = await window.api.getMedicineByBarcode(code);
+  if (!med) { showAlert('alertMsg',`No medicine for barcode: ${code}`); return; }
+  if (med.quantity <= 0) { showAlert('alertMsg',`❌ "${med.medicinename}" is OUT OF STOCK.`); return; }
+
+  const items = currentTable==='normal' ? billMgr.active.items : patItems;
+  const bodyId = currentTable==='normal' ? 'saleBody' : 'patSaleBody';
+
+  // Same item scanned again → qty+1
+  const existing = items.find(i=>i.medicineid===med.id);
+  if (existing) {
+    const nq = (parseFloat(existing.quantity)||0)+1;
+    if (nq > med.quantity) { showAlert('alertMsg',`Max stock: ${med.quantity} for "${med.medicinename}"`, 'warning'); return; }
+    existing.quantity = nq;
+    renderBillTable(items, bodyId);
+    showAlert('alertMsg',`"${med.medicinename}" qty → ${nq}`,'success');
+    return;
+  }
+  // Fill empty row or add new
+  const emptyIdx = items.findIndex(i=>!i.medicineid);
+  const item = { medicineid:med.id, medicinename:med.medicinename, salt:med.salt||'', saleprice:med.saleprice, purchaseprice:med.purchaseprice||0, quantity:1, maxqty:med.quantity };
+  if (emptyIdx>=0) { Object.assign(items[emptyIdx], item); }
+  else { items.push(item); }
+  renderBillTable(items, bodyId);
+  if (currentTable==='normal') calcNormalTotals(); else calcPatTotals();
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+async function refreshBillNumbers() {
+  const nextNo = await window.api.getNextSaleBillNo();
+  document.getElementById('txtBillNo').value = nextNo;
+  document.getElementById('txtPatBillNo').value = nextNo;
+}
+
+async function init() {
+  await refreshBillNumbers();
+  document.getElementById('dtpDate').value      = todayStr();
+  document.getElementById('dtpPatDate').value   = todayStr();
+
+  billMgr = new BillManager(()=>renderBillTable(billMgr.active.items,'saleBody'));
+  billMgr.renderTabs();
+  billMgr.renderFn();
+
+  // Load patients
+  const patients = await window.api.getPatients();
+  const cmbPat = document.getElementById('cmbPatient');
+  patients.forEach(p => cmbPat.innerHTML += `<option value="${p.id}" data-info="${p.name} | ${p.illness||'—'} | ${p.mobile||'—'}">${p.name}${p.illness?' ('+p.illness+')':''}</option>`);
+  cmbPat.addEventListener('change', () => {
+    const opt = cmbPat.options[cmbPat.selectedIndex];
+    const infoBox = document.getElementById('patInfoBox');
+    const infoText = document.getElementById('patInfoText');
+    if (cmbPat.value) { infoBox.style.display='block'; infoText.textContent=opt.dataset.info||''; }
+    else { infoBox.style.display='none'; }
+  });
+
+  // Dose end date calculation
+  function recalcDoseEnd() {
+    const days = parseInt(document.getElementById('txtDoseDays').value)||0;
+    const dateStr = document.getElementById('dtpPatDate').value||todayStr();
+    if (days>0) { const d=new Date(dateStr); d.setDate(d.getDate()+days); document.getElementById('txtDoseEnd').value=d.toISOString().split('T')[0]; }
+    else document.getElementById('txtDoseEnd').value='';
+  }
+  document.getElementById('txtDoseDays').addEventListener('input', recalcDoseEnd);
+  document.getElementById('dtpPatDate').addEventListener('change', recalcDoseEnd);
+
+  // Medicine picker result — ONE listener
+  registerMedicineSelectedListener(med => {
+    if (editingRow < 0) return;
+    if (med.quantity <= 0) { showAlert('alertMsg',`❌ "${med.medicinename}" OUT OF STOCK. Cannot sell.`); return; }
+    const items = currentTable==='normal' ? billMgr.active.items : patItems;
+    const bodyId = currentTable==='normal' ? 'saleBody' : 'patSaleBody';
+    if (editingRow >= items.length) return;
+    Object.assign(items[editingRow], {
+      medicineid:med.id, medicinename:med.medicinename,
+      salt:med.salt||'', saleprice:med.saleprice,
+      purchaseprice:med.purchaseprice||0, maxqty:med.quantity
+    });
+    renderBillTable(items, bodyId);
+    // Focus qty immediately after medicine selected
+    const focusEl=document.getElementById(`qty_${editingRow}`);
+    if(focusEl){ focusEl.focus(); focusEl.select(); }
+    setTimeout(()=>{ const el=document.getElementById(`qty_${editingRow}`); if(el){el.focus();el.select();} },80);
+  });
+
+  // Global shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key==='F4') { e.preventDefault(); currentTable==='normal'?doPrint():doPatPrint(); }
+    if (e.key==='F5') { e.preventDefault(); billMgr.addBill(); }
+  });
+
+  // Pat save handler
+  document.getElementById('btnPatSave').onclick = savePatientBill;
+  document.getElementById('txtPatDis').addEventListener('input', calcPatTotals);
+
+  patItems = [{ medicineid:'', medicinename:'', salt:'', quantity:1, saleprice:'', purchaseprice:0, maxqty:9999 }];
+  renderBillTable(patItems, 'patSaleBody');
+  
+  setTimeout(()=>{ const el=document.getElementById('qty_0'); if(el) el.focus(); },200);
+}
+
+// ── ROW MANAGEMENT ───────────────────────────────────────────────
+function addRow(tableType, doFocus=true) {
+  const items = tableType==='normal' ? billMgr.active.items : patItems;
+  const bodyId = tableType==='normal' ? 'saleBody' : 'patSaleBody';
+  const idx = items.length;
+  items.push({ medicineid:'', medicinename:'', salt:'', quantity:1, saleprice:'', purchaseprice:0, maxqty:9999 });
+  renderBillTable(items, bodyId);
+  if (doFocus) setTimeout(()=>{ const el=document.getElementById(`qty_${idx}`); if(el)el.focus(); },50);
+}
+
+// ── RENDER TABLE (event delegation — no per-row listeners) ────────
+let _dlgNormal=false, _dlgPatient=false;
+
+function renderBillTable(items, bodyId) {
+  const tbody = document.getElementById(bodyId);
+  if (!tbody) return;
+  tbody.innerHTML='';
+  const tableType = bodyId==='saleBody'?'normal':'patient';
+
+  items.forEach((item,idx) => {
+    const qty  = parseFloat(item.quantity)||1;
+    const sp   = parseFloat(item.saleprice)||0;
+    const pp   = parseFloat(item.purchaseprice)||0;
+    const lt   = qty*sp;
+    const prof = (sp-pp)*qty;
+    const isOut = item.medicineid && item.maxqty!==undefined && item.maxqty<=0;
+    const isLow = item.medicineid && item.maxqty!==undefined && item.maxqty>0 && item.maxqty<10;
+    const tr = document.createElement('tr');
+    tr.dataset.idx=idx; tr.dataset.table=tableType;
+    
+    if (isOut) tr.style.background='rgba(239, 68, 68, 0.05)';
+    else if (isLow) tr.style.background='rgba(245, 158, 11, 0.05)';
+    
+    tr.innerHTML=`
+      <td style="color:var(--text-muted); font-size:11px;">${idx+1}</td>
+      <td>
+        <div style="font-weight:700; color:var(--text-main)">${item.medicinename || '<span style="opacity:0.3; font-weight:400">Click to select...</span>'}</div>
+        <div style="font-size:10px; color:var(--primary); opacity:0.8; letter-spacing:0.5px">${item.salt || ''}</div>
+      </td>
+      <td>
+        <input type="number" id="qty_${idx}" class="form-control bill-qty"
+            data-idx="${idx}" data-table="${tableType}"
+            style="padding:6px 8px; width:70px; font-weight:800; text-align:center; border-color:var(--primary-glow)" 
+            value="${qty}" min="1"
+            ${item.maxqty!==undefined&&item.maxqty>0?`max="${item.maxqty}"`:''}/>
+      </td>
+      <td style="text-align:right">
+        <div style="font-weight:600; color:var(--text-main)">${sp>0?sp.toFixed(2):'0.00'}</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-weight:700; color:var(--secondary)" class="lt-cell">${lt>0?formatCurrency(lt):'0.00'}</div>
+      </td>
+      <td style="text-align:center">
+        <button class="btn btn-danger bill-del" data-idx="${idx}" data-table="${tableType}" 
+                style="padding:4px 8px; font-size:10px; min-width:unset; border-radius:6px" tabindex="-1">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  if (tableType==='normal') { calcNormalTotals(); billMgr.renderTabs(); }
+  else calcPatTotals();
+
+  // Setup delegation once per tbody
+  if (tableType==='normal' && !_dlgNormal) { _dlgNormal=true; setupDelegation(tbody,'normal'); }
+  if (tableType==='patient' && !_dlgPatient) { _dlgPatient=true; setupDelegation(tbody,'patient'); }
+}
+
+function setupDelegation(tbody, tableType) {
+  tbody.addEventListener('click', e => {
+    const tr=e.target.closest('tr'); if(!tr) return;
+    if (e.target.matches('.bill-del')) { removeRow(parseInt(e.target.dataset.idx),tableType); return; }
+    tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('selected'));
+    tr.classList.add('selected'); selectedRowIdx=parseInt(tr.dataset.idx);
+  });
+  tbody.addEventListener('keydown', e => {
+    const el=e.target; const idx=parseInt(el.dataset.idx);
+    const items=tableType==='normal'?billMgr.active.items:patItems;
+    if (!el.matches('.bill-qty')) return;
+    if (e.key==='Enter') {
+      e.preventDefault();
+      if (!items[idx]||!items[idx].medicineid) { editingRow=idx; currentTable=tableType; window.api.openMedicineSelection(); return; }
+      const v=parseFloat(el.value)||1;
+      if (items[idx].maxqty>0&&v>items[idx].maxqty) { el.value=items[idx].maxqty; showAlert('alertMsg',`Max: ${items[idx].maxqty}`,'warning'); return; }
+      items[idx].quantity=v;
+      if (tableType==='normal') calcNormalTotals(); else calcPatTotals();
+      if (idx===items.length-1) addRow(tableType,true);
+      else setTimeout(()=>{ const n=document.getElementById(`qty_${idx+1}`); if(n)n.focus(); },40);
+      return;
+    }
+    if (e.key==='Escape') { e.preventDefault(); removeRow(idx,tableType); }
+  });
+  tbody.addEventListener('input', e => {
+    const el=e.target; const idx=parseInt(el.dataset.idx);
+    if (!el.matches('.bill-qty')) return;
+    const items=tableType==='normal'?billMgr.active.items:patItems;
+    if (!items[idx]) return;
+    let v=parseFloat(el.value)||1;
+    if (items[idx].maxqty>0&&v>items[idx].maxqty) { v=items[idx].maxqty; el.value=v; }
+    items[idx].quantity=v;
+    // Update cells without full re-render
+    const tr=el.closest('tr'); if(tr) {
+      const sp=parseFloat(items[idx].saleprice)||0, pp=parseFloat(items[idx].purchaseprice)||0;
+      const lt=v*sp, prof=(sp-pp)*v;
+      const pc=tr.querySelector('.prof-cell'); const lc=tr.querySelector('.lt-cell');
+      if(pc){pc.textContent=items[idx].medicineid&&sp>0?formatCurrency(prof):'';pc.style.color=prof>=0?'#2e7d32':'#c62828';}
+      if(lc){lc.textContent=lt>0?formatCurrency(lt):'';}
+    }
+    if (tableType==='normal') calcNormalTotals(); else calcPatTotals();
+  });
+}
+
+function removeRow(idx, tableType) {
+  const items=tableType==='normal'?billMgr.active.items:patItems;
+  const bodyId=tableType==='normal'?'saleBody':'patSaleBody';
+  const med=items[idx];
+  if (med&&med.medicinename&&!confirm(`Remove "${med.medicinename}"?`)) return;
+  items.splice(idx,1); selectedRowIdx=-1;
+  if (items.length===0) addRow(tableType,true); else renderBillTable(items,bodyId);
+}
+
+// ── TOTALS ───────────────────────────────────────────────────────
+function calcNormalTotals() {
+  let net=0, prof=0;
+  billMgr.active.items.forEach(i=>{ const q=parseFloat(i.quantity)||0,s=parseFloat(i.saleprice)||0,p=parseFloat(i.purchaseprice)||0; net+=q*s; if(i.medicineid) prof+=(s-p)*q; });
+  document.getElementById('txtNA').value=formatCurrency(net);
+  const dis=parseFloat(document.getElementById('txtDis').value)||0;
+  // Sync discount % (only if user didn't just type in pct field)
+  const pctEl=document.getElementById('txtDisPct');
+  if (document.activeElement !== pctEl && net>0) {
+    pctEl.value = dis>0 ? (dis/net*100).toFixed(1) : '';
+  }
+  document.getElementById('txtTA').value=formatCurrency(Math.max(0,net-dis));
+  document.getElementById('billProfit').textContent=formatCurrency(prof);
+  document.getElementById('billProfitPct').textContent=net>0?(prof/net*100).toFixed(1)+'%':'0%';
+}
+function calcPatTotals() {
+  let net=0;
+  patItems.forEach(i=>{ net+=(parseFloat(i.quantity)||0)*(parseFloat(i.saleprice)||0); });
+  document.getElementById('txtPatNA').value=formatCurrency(net);
+  const dis=parseFloat(document.getElementById('txtPatDis').value)||0;
+  const pctEl=document.getElementById('txtPatDisPct');
+  if (document.activeElement !== pctEl && net>0) {
+    pctEl.value = dis>0 ? (dis/net*100).toFixed(1) : '';
+  }
+  document.getElementById('txtPatTA').value=formatCurrency(Math.max(0,net-dis));
+}
+// Discount Rs → recalc %
+document.getElementById('txtDis').addEventListener('input', ()=>{
+  billMgr.active.discount=parseFloat(document.getElementById('txtDis').value)||0;
+  calcNormalTotals();
+});
+// Discount % → calculate Rs from %
+document.getElementById('txtDisPct').addEventListener('input', ()=>{
+  const net=parseFloat(document.getElementById('txtNA').value)||0;
+  const pct=parseFloat(document.getElementById('txtDisPct').value)||0;
+  const disAmt=parseFloat((net*pct/100).toFixed(2));
+  document.getElementById('txtDis').value=disAmt>0?disAmt:'';
+  billMgr.active.discount=disAmt;
+  // Update total without re-triggering % sync
+  document.getElementById('txtTA').value=formatCurrency(Math.max(0,net-disAmt));
+});
+// Patient discount Rs → recalc %
+document.getElementById('txtPatDis').addEventListener('input', calcPatTotals);
+// Patient discount % → calculate Rs
+document.getElementById('txtPatDisPct').addEventListener('input', ()=>{
+  const net=parseFloat(document.getElementById('txtPatNA').value)||0;
+  const pct=parseFloat(document.getElementById('txtPatDisPct').value)||0;
+  const disAmt=parseFloat((net*pct/100).toFixed(2));
+  document.getElementById('txtPatDis').value=disAmt>0?disAmt:'';
+  document.getElementById('txtPatTA').value=formatCurrency(Math.max(0,net-disAmt));
+});
+document.getElementById('txtCusName').addEventListener('input', e=>{ billMgr.active.customername=e.target.value; });
+
+// ── SYNC HEADER when switching parallel bills ─────────────────────
+const origRenderTabs = BillManager.prototype.renderTabs;
+// (billMgr.renderFn already does renderBillTable which syncs)
+
+// ── PRINT ─────────────────────────────────────────────────────────
+async function doPrint() {
+  const valid=billMgr.active.items.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','No items.','warning');return;}
+  const [s,u]=[await window.api.getSettings(),getSession()];
+  await window.api.printBill({type:'sale',billno:document.getElementById('txtBillNo').value,items:valid,
+    header:{pharmacyname:s.pharmacyname,logo:s.pharmacylogo,address:s.pharmacyaddress,description:s.pharmacydescription,user:u.username,customer:document.getElementById('txtCusName').value},
+    totals:{netamount:parseFloat(document.getElementById('txtNA').value)||0,discount:parseFloat(document.getElementById('txtDis').value)||0,totalamount:parseFloat(document.getElementById('txtTA').value)||0}});
+}
+async function doPatPrint() {
+  const valid=patItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertPatMsg','No items.','warning');return;}
+  const [s,u]=[await window.api.getSettings(),getSession()];
+  const pat=document.getElementById('cmbPatient');
+  await window.api.printBill({type:'sale',billno:document.getElementById('txtPatBillNo').value,items:valid,
+    header:{pharmacyname:s.pharmacyname,logo:s.pharmacylogo,address:s.pharmacyaddress,description:s.pharmacydescription,user:u.username,customer:pat.options[pat.selectedIndex]?.text||''},
+    totals:{netamount:parseFloat(document.getElementById('txtPatNA').value)||0,discount:parseFloat(document.getElementById('txtPatDis').value)||0,totalamount:parseFloat(document.getElementById('txtPatTA').value)||0}});
+}
+
+// ── SAVE NORMAL BILL ─────────────────────────────────────────────
+document.getElementById('btnSave').onclick = async () => {
+  const valid=billMgr.active.items.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','Add at least one medicine.');return;}
+  
+  // Re-fetch absolute latest bill number to avoid conflicts
+  const billno = await window.api.getNextSaleBillNo();
+  
+  const customername=document.getElementById('txtCusName').value.trim()||null;
+  const saledate=document.getElementById('dtpDate').value;
+  const netamount=parseFloat(document.getElementById('txtNA').value)||0;
+  const discount=parseFloat(document.getElementById('txtDis').value)||0;
+  const totalamount=parseFloat(document.getElementById('txtTA').value)||0;
+  const result=await window.api.saveSaleBill({items:valid,billno,customername,saledate,netamount,discount,totalamount});
+  if(!result.success){showAlert('alertMsg',result.error||'Save failed.');return;}
+  if(confirm('Bill saved! Print receipt?')) await doPrint();
+  billMgr.closeCurrent();
+  await refreshBillNumbers(); // Sync both Normal and Patient tabs
+  document.getElementById('dtpDate').value=todayStr();
+  document.getElementById('txtDis').value='';
+  document.getElementById('txtDisPct').value='';
+};
+
+// ── SAVE PATIENT BILL ─────────────────────────────────────────────
+async function savePatientBill() {
+  const patientid=document.getElementById('cmbPatient').value;
+  if(!patientid){showAlert('alertPatMsg','Select a permanent patient first.');return;}
+  const valid=patItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertPatMsg','Add at least one medicine.');return;}
+  const dosedays=parseInt(document.getElementById('txtDoseDays').value)||0;
+  if(!dosedays){showAlert('alertPatMsg','Enter dose duration (days).');return;}
+  
+  // Re-fetch absolute latest bill number to avoid conflicts
+  const billno = await window.api.getNextSaleBillNo();
+  
+  const pat=document.getElementById('cmbPatient');
+  const customername=pat.options[pat.selectedIndex]?.text||null;
+  const saledate=document.getElementById('dtpPatDate').value;
+  const netamount=parseFloat(document.getElementById('txtPatNA').value)||0;
+  const discount=parseFloat(document.getElementById('txtPatDis').value)||0;
+  const totalamount=parseFloat(document.getElementById('txtPatTA').value)||0;
+  const result=await window.api.saveSaleBill({items:valid,billno,customername,saledate,netamount,discount,totalamount});
+  if(!result.success){showAlert('alertPatMsg',result.error||'Save failed.');return;}
+  await window.api.savePatientDose({patientid,billno,saledate,dosedays});
+  if(confirm(`Patient bill saved! Dose ends: ${document.getElementById('txtDoseEnd').value}. Print?`)) await doPatPrint();
+  // Reset patient tab
+  patItems=[];
+  document.getElementById('cmbPatient').value='';
+  document.getElementById('patInfoBox').style.display='none';
+  document.getElementById('txtDoseDays').value='';
+  document.getElementById('txtDoseEnd').value='';
+  document.getElementById('txtPatDis').value='';
+  document.getElementById('txtPatDisPct').value='';
+  await refreshBillNumbers(); // Sync both Normal and Patient tabs
+  document.getElementById('dtpPatDate').value=todayStr();
+  addRow('patient',false);
+}
+
+init();
+</script>
+</body>
+</html>

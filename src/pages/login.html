@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Login</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  body { 
+    display:flex; 
+    flex-direction:column; 
+    height: 100vh; 
+    overflow: hidden; 
+    background: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+  }
+  .login-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: slideInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes slideInUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<!-- Titlebar is injected by common.js -->
+
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-logo">💊</div>
+    <div class="login-title" id="lblPharmcoName">PHARMCO</div>
+    <div class="login-sub">Quantum Management Ecosystem</div>
+
+    <!-- Mode tabs -->
+    <div class="bill-tabs mb-4" style="padding: 4px; background: rgba(0,0,0,0.2);">
+      <button class="bill-tab active" id="tabLocal" style="flex:1" onclick="setMode('local')">🖥 Local</button>
+      <button class="bill-tab" id="tabLAN" style="flex:1" onclick="setMode('lan')">🌐 Network</button>
+    </div>
+
+    <div id="alertMsg" class="alert alert-danger"></div>
+
+    <!-- ── LOCAL LOGIN PANEL ── -->
+    <div id="localPanel">
+      <div class="form-group mb-4">
+        <label>Operator ID</label>
+        <input type="text" id="txtUser" class="form-control" placeholder="Username" autofocus/>
+      </div>
+      <div class="form-group mb-4">
+        <label>Security Key</label>
+        <input type="password" id="txtPass" class="form-control" placeholder="••••••••"/>
+      </div>
+      <button class="btn btn-primary w-full" id="btnLogin" style="padding: 16px; font-size: 15px;">
+        🔐 AUTHORIZE ACCESS
+      </button>
+    </div>
+
+    <!-- ── LAN CONNECT PANEL ── -->
+    <div id="lanPanel" style="display:none;">
+      <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:16px; text-align:center; letter-spacing:1px;">
+        Scanning Local Area Network
+      </div>
+      <div id="serverList" style="max-height: 200px; overflow-y: auto; margin-bottom: 20px; padding-right: 4px;">
+        <div style="text-align:center; color:var(--text-muted); padding:20px;">⏳ Looking for servers...</div>
+      </div>
+      
+      <div class="form-group">
+        <label>Manual Link</label>
+        <div class="flex gap-4">
+          <input type="text" id="txtManualURL" class="form-control" placeholder="http://192.168.1.10:7272" style="flex:1; font-family:monospace;"/>
+          <button class="btn btn-secondary" onclick="connectManual()">LINK</button>
+        </div>
+      </div>
+
+      <div id="lanCredPanel" style="display:none; margin-top:24px; border-top:1px solid var(--border-color); padding-top:24px;">
+        <div style="font-size:12px; font-weight:800; color:var(--secondary); margin-bottom:20px; text-align:center; text-transform:uppercase; letter-spacing:1px;">
+          📡 Link Established
+        </div>
+        <div class="form-group mb-4">
+          <label>Username</label>
+          <input type="text" id="txtLanUser" class="form-control" placeholder="Operator ID"/>
+        </div>
+        <div class="form-group mb-4">
+          <label>Password</label>
+          <input type="password" id="txtLanPass" class="form-control" placeholder="••••••••"/>
+        </div>
+        <div class="flex gap-4">
+          <button class="btn btn-primary" id="btnLanLogin" style="flex:2;">SIGN IN</button>
+          <button class="btn btn-secondary" onclick="backToScan()" style="flex:1;">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dev-credit" style="margin-top:40px; text-align:center; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border-color); padding-top:24px;">
+      <div style="margin-bottom:4px; opacity:0.8;">© 2025 HKUKO DEVS</div>
+
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+let currentMode = 'local';
+let selectedServerUrl = '';
+let scanResults = [];
+
+// Apply theme (keep only logic, no button toggle needed here as it's in common.js globally or sidebar)
+// But login page doesn't have sidebar, so we use common applyTheme
+applyTheme();
+
+// Load pharmacy name/logo and detect mode
+(async () => {
+  injectTitlebar();
+  try {
+    const s = await window.api.getSettings();
+    if (s.pharmacyname) document.getElementById('lblPharmcoName').textContent = s.pharmacyname;
+  } catch(e) {}
+})();
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabLocal').classList.toggle('active', mode === 'local');
+  document.getElementById('tabLAN').classList.toggle('active', mode === 'lan');
+  document.getElementById('localPanel').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('lanPanel').style.display = mode === 'lan' ? 'block' : 'none';
+  if (mode === 'lan') startScan();
+  else document.getElementById('txtUser').focus();
+}
+
+async function doLogin() {
+  const username = document.getElementById('txtUser').value.trim();
+  const password = document.getElementById('txtPass').value;
+  if (!username || !password) { showAlert('alertMsg','Enter credentials.'); return; }
+  const user = await window.api.login({ username, password });
+  if (user) {
+    setSession(user);
+    window.api.navigate('dashboard');
+  } else {
+    showAlert('alertMsg','Invalid username or password.');
+  }
+}
+document.getElementById('btnLogin').onclick = doLogin;
+document.getElementById('txtPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+async function startScan() {
+  const list = document.getElementById('serverList');
+  list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted)">⏳ Scanning...</div>';
+  try {
+    scanResults = await window.api.scanLAN();
+    if (!scanResults || scanResults.length === 0) {
+      list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted)">No servers found.</div>';
+    } else {
+      list.innerHTML = '';
+      scanResults.forEach(srv => {
+        const div = document.createElement('div');
+        div.className = 'glass-card';
+        div.style.marginBottom = '8px';
+        div.style.cursor = 'pointer';
+        div.style.padding = '12px';
+        div.innerHTML = `<div style="font-weight:700; color:var(--primary)">${srv.name}</div><div style="font-size:11px; opacity:0.6">${srv.url}</div>`;
+        div.onclick = () => connectToServer(srv.url);
+        list.appendChild(div);
+      });
+    }
+  } catch(e) {}
+}
+
+function connectToServer(url) {
+  selectedServerUrl = url;
+  document.getElementById('lanCredPanel').style.display = 'block';
+}
+
+async function connectManual() {
+  const url = document.getElementById('txtManualURL').value.trim();
+  if (!url) return;
+  const fullUrl = url.startsWith('http') ? url : `http://${url}`;
+  const result = await window.api.testConnection(fullUrl);
+  if (result.ok) connectToServer(fullUrl);
+  else showAlert('alertMsg', 'Cannot reach server.');
+}
+
+function backToScan() {
+  document.getElementById('lanCredPanel').style.display = 'none';
+}
+
+async function doLanLogin() {
+  const username = document.getElementById('txtLanUser').value.trim();
+  const password = document.getElementById('txtLanPass').value;
+  if (!selectedServerUrl || !username || !password) return;
+  try {
+    await window.api.applyNetworkMode({ mode:'network', serverUrl: selectedServerUrl });
+    localStorage.setItem('pendingLanLogin', JSON.stringify({ username, password }));
+  } catch(e) { showAlert('alertMsg', 'Failed to connect.'); }
+}
+document.getElementById('btnLanLogin').onclick = doLanLogin;
+
+(async () => {
+  const pending = localStorage.getItem('pendingLanLogin');
+  if (pending) {
+    localStorage.removeItem('pendingLanLogin');
+    try {
+      const { username, password } = JSON.parse(pending);
+      const user = await window.api.login({ username, password });
+      if (user) { setSession(user); window.api.navigate('dashboard'); }
+    } catch(e) {}
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Reports</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()">&#10005;</button>
+  </div>
+</div>
+<script>async function toggleMax(){window.api.winMaximize();setTimeout(async()=>{const m=await window.api.winIsMaximized();const b=document.getElementById('winMaxBtn');if(b)b.innerHTML=m?'&#10697;':'&#9633;';},80);}</script>
+
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>📈 Reports</h1>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title">📅 Daily Report</div>
+    <div class="search-form">
+      <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" id="dtpsd" class="form-control" style="width:180px;"/>
+      </div>
+      <button class="btn btn-primary" onclick="loadDayReport()">🔍 Load Day</button>
+    </div>
+    
+    <div class="dash-grid" style="margin-top:24px">
+      <div class="glass-card stat-card"><div class="stat-label">Total Sales</div><div class="stat-value" id="txtSales">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Returns</div><div class="stat-value" id="txtTR" style="color:var(--danger)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Discount</div><div class="stat-value" id="txtDis" style="color:var(--accent)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Net Cash</div><div class="stat-value" id="txtNT" style="color:var(--secondary)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Day Profit</div><div class="stat-value" id="txtDProfit" style="color:var(--primary)">0.00</div></div>
+    </div>
+    <div id="dayChartWrap" style="position:relative;height:250px;margin-top:24px;"></div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title">📆 Monthly Report</div>
+    <div class="search-form">
+      <div class="form-group">
+        <label>Select Month</label>
+        <input type="month" id="dtpsm" class="form-control" style="width:180px;"/>
+      </div>
+      <button class="btn btn-primary" onclick="loadMonthReport()">🔍 Load Month</button>
+    </div>
+
+    <div class="dash-grid" style="margin-top:24px">
+      <div class="glass-card stat-card"><div class="stat-label">Monthly Sales</div><div class="stat-value" id="txtMS">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Monthly Returns</div><div class="stat-value" id="txtMR" style="color:var(--danger)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Monthly Discount</div><div class="stat-value" id="txtMD" style="color:var(--accent)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Monthly Net</div><div class="stat-value" id="txtMNT" style="color:var(--secondary)">0.00</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Month Profit</div><div class="stat-value" id="txtMProfit" style="color:var(--primary)">0.00</div></div>
+    </div>
+    <div id="monthChartWrap" style="position:relative;height:250px;margin-top:24px;"></div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('reports');
+loadTopBar();
+
+// ── CHART FACTORY ─────────────────────────────────────────────────
+// Creates a completely fresh canvas each time — fixes the "chart doesn't update" bug
+// where Chart.js held stale data on the old canvas instance
+function buildChart(wrapId, type, labels, datasets) {
+  const wrap = document.getElementById(wrapId);
+  wrap.innerHTML = ''; // destroy old canvas completely
+  const canvas = document.createElement('canvas');
+  wrap.appendChild(canvas);
+  return new Chart(canvas.getContext('2d'), {
+    type,
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: datasets.length > 1, position:'top' } },
+      scales: {
+        y: { beginAtZero: true, grid: { color:'rgba(128,128,128,0.1)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ── DAILY REPORT ──────────────────────────────────────────────────
+async function loadDayReport() {
+  const date = document.getElementById('dtpsd').value || todayStr();
+  const report = await window.api.getDayReport(date);
+  const { sales, returns, chartRows } = report;
+
+  document.getElementById('txtSales').textContent   = formatCurrency(sales.total || 0);
+  document.getElementById('txtTR').textContent      = formatCurrency(returns.total || 0);
+  document.getElementById('txtDis').textContent     = formatCurrency(sales.disc || 0);
+  document.getElementById('txtNT').textContent      = formatCurrency((sales.ta||0) - (returns.total||0));
+  document.getElementById('txtDProfit').textContent = formatCurrency(sales.profit || 0);
+
+  const rows = [...(chartRows||[])].reverse();
+  buildChart('dayChartWrap', 'bar',
+    rows.map(r => r.saledate),
+    [
+      {
+        label: 'Sales (Rs)',
+        data: rows.map(r => parseFloat(r.total)||0),
+        backgroundColor: 'var(--primary-light)',
+        borderColor: 'var(--primary)', borderWidth:2, borderRadius:6
+      },
+      {
+        label: 'Profit (Rs)',
+        data: rows.map(r => parseFloat(r.profit||0)),
+        backgroundColor: 'rgba(74,20,140,0.6)',
+        borderColor: '#4a148c', borderWidth:2, borderRadius:6
+      }
+    ]
+  );
+}
+
+// ── MONTHLY REPORT ────────────────────────────────────────────────
+// KEY FIX: month report fetches per-day breakdown for the selected month
+// so the chart shows DAILY sales within that month, not just 6-month history
+async function loadMonthReport() {
+  const month = document.getElementById('dtpsm').value || todayStr().slice(0,7);
+  const report = await window.api.getMonthReport(month);
+  const { sales, returns } = report;
+
+  document.getElementById('txtMS').textContent      = formatCurrency(sales.total || 0);
+  document.getElementById('txtMR').textContent      = formatCurrency(returns.total || 0);
+  document.getElementById('txtMD').textContent      = formatCurrency(sales.disc || 0);
+  document.getElementById('txtMNT').textContent     = formatCurrency((sales.ta||0) - (returns.total||0));
+  document.getElementById('txtMProfit').textContent = formatCurrency(sales.profit || 0);
+
+  // chartRows from getMonthReport are per-day entries for the selected month
+  const rows = [...(report.chartRows||[])].sort((a,b)=>a.saledate>b.saledate?1:-1);
+
+  if (!rows.length) {
+    document.getElementById('monthChartWrap').innerHTML =
+      '<div style="text-align:center;color:var(--text-light);padding:60px;font-size:14px;">No sales data for ' + month + '</div>';
+    return;
+  }
+
+  buildChart('monthChartWrap', 'line',
+    rows.map(r => r.saledate),
+    [
+      {
+        label: 'Daily Sales (Rs)',
+        data: rows.map(r => parseFloat(r.total)||0),
+        backgroundColor: 'rgba(0,137,123,0.15)',
+        borderColor: '#00897b', borderWidth:2.5,
+        fill: true, tension: 0.35,
+        pointBackgroundColor: '#00897b', pointRadius: 4
+      },
+      {
+        label: 'Daily Profit (Rs)',
+        data: rows.map(r => parseFloat(r.profit||0)),
+        backgroundColor: 'rgba(74,20,140,0.08)',
+        borderColor: '#4a148c', borderWidth:2,
+        fill: true, tension: 0.35,
+        pointBackgroundColor: '#4a148c', pointRadius: 4
+      }
+    ]
+  );
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+document.getElementById('dtpsd').value = todayStr();
+document.getElementById('dtpsm').value = todayStr().slice(0,7);
+loadDayReport();
+loadMonthReport();
+</script>
+</body>
+</html>

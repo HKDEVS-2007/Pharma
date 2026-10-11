@@ -1,0 +1,89 @@
+{
+  "name": "pharma",
+  "version": "1.0.0",
+  "description": "Pharmco - Advanced Pharmacy Management System by HKDEVS",
+  "author": {
+    "name": "HKDEVS",
+    "email": "hamdankaleem2007@gmail.com"
+  },
+  "main": "main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps",
+    "prebuild": "node -e \"const fs=require('fs'); const path=require('path'); const src='C:/Users/hamda/AppData/Roaming/pharma/pharmco.db'; const dest=path.join(process.cwd(), 'main', 'pharmco.db'); if (fs.existsSync(src)) { fs.copyFileSync(src, dest); console.log('Copied current database to main/pharmco.db'); } else { console.log('Source database not found, skipping copy'); }\"",
+    "build": "electron-builder --win --x64",
+    "prebuild32": "npm run prebuild",
+    "build32": "electron-builder --win --ia32"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "cors": "^2.8.5",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.3",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.hkdevs.pharma",
+    "productName": "Pharmco",
+    "copyright": "HKDEVS - Hamdan Kaleem",
+    "icon": "src/assets/icon.ico",
+    "publish": [
+      "github"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/bindings/**",
+      "node_modules/file-uri-to-path/**"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "src/assets"
+    },
+    "files": [
+      "main/**",
+      "src/**",
+      "node_modules/**",
+      "package.json"
+    ],
+    "win": {
+      "icon": "src/assets/icon.ico",
+      "publisherName": "HKDEVS",
+      "legalTrademarks": "HKDEVS",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "menuCategory": "HKDEVS",
+      "include": "src/assets/installer.nsh",
+      "installerIcon": "src/assets/icon.ico",
+      "uninstallerIcon": "src/assets/icon.ico",
+      "installerHeaderIcon": "src/assets/icon.ico",
+      "installerLanguages": [
+        "en_US"
+      ],
+      "language": "1033",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Pharmco"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HKDEVS-2007/Pharma.git"
+  }
+}

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Medicine History</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  .tab-nav { display: flex; gap: 8px; margin-bottom: 24px; padding: 6px; background: rgba(255,255,255,0.03); border-radius: 12px; width: fit-content; }
+  .tab-btn { background: transparent; border: 1px solid transparent; color: var(--text-muted); padding: 8px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  .tab-btn.active { background: var(--primary-glow); color: var(--primary); border-color: rgba(99, 102, 241, 0.2); }
+  .tab-btn:hover:not(.active) { color: var(--text-main); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  
+  /* Dropdown styles */
+  .autocomplete-wrapper { position: relative; }
+  .autocomplete-dropdown {
+    position: fixed; z-index: 99999;
+    background: var(--card-bg); border: 1px solid var(--border-color);
+    border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    max-height: 250px; overflow-y: auto; display: none;
+  }
+
+  .autocomplete-item { padding: 8px 12px; cursor: pointer; }
+  .autocomplete-item:hover { background: var(--primary-glow); }
+</style>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()" title="Minimize">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()" title="Close">&#10005;</button>
+  </div>
+</div>
+<script>
+async function toggleMax(){
+  window.api.winMaximize();
+  setTimeout(async()=>{
+    const m=await window.api.winIsMaximized();
+    const btn=document.getElementById('winMaxBtn');
+    if(btn)btn.innerHTML=m?'&#10697;':'&#9633;';
+  },80);
+}
+</script>
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>📜 Medicine History</h1>
+  </div>
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('sale',this)">🛒 Sale History</button>
+      <button class="tab-btn" onclick="switchTab('purchase',this)">🏭 Purchase History</button>
+      <button class="tab-btn" onclick="switchTab('return',this)">↩ Return History</button>
+    </div>
+
+    <!-- SALE HISTORY TAB -->
+    <div id="tab-sale" class="tab-panel active">
+      <div class="glass-card" style="overflow: visible;">
+        <h3 class="mb-4">Search Medicine Sale History</h3>
+        <div class="search-form" style="position: relative; z-index: 10000;">
+          <div class="form-group autocomplete-wrapper">
+            <label>Medicine Name</label>
+            <input type="text" id="saleSearch" class="form-control" placeholder="e.g. Panadol" autocomplete="off"/>
+            <div id="saleDropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <button class="btn btn-primary" onclick="loadSaleHistory()">🔍 Search</button>
+        </div>
+      </div>
+    <div class="dash-grid">
+      <div class="glass-card stat-card"><div class="stat-label">Sold This Month</div><div class="stat-value" id="saleMo">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Current Stock</div><div class="stat-value" id="saleStock" style="color:var(--secondary)">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Total Records</div><div class="stat-value" id="saleCnt" style="color:var(--accent)">0</div></div>
+    </div>
+    <div class="glass-card">
+      <h3 class="mb-4">Sale Records</h3>
+      <div class="table-wrapper">
+        <table class="dgv">
+          <thead><tr><th>Bill No</th><th>Medicine</th><th>Qty Sold</th><th>Sale Price</th><th>Sale Date</th><th>Customer</th></tr></thead>
+          <tbody id="saleHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PURCHASE HISTORY TAB -->
+  <div id="tab-purchase" class="tab-panel">
+    <div class="glass-card" style="overflow: visible;">
+      <h3 class="mb-4">Search Medicine Purchase History</h3>
+      <div class="search-form" style="position: relative; z-index: 10000;">
+        <div class="form-group autocomplete-wrapper">
+          <label>Medicine Name</label>
+          <input type="text" id="purSearch" class="form-control" placeholder="e.g. Panadol" autocomplete="off"/>
+          <div id="purDropdown" class="autocomplete-dropdown"></div>
+        </div>
+        <button class="btn btn-primary" onclick="loadPurHistory()">🔍 Search</button>
+      </div>
+    </div>
+    <div class="dash-grid">
+      <div class="glass-card stat-card"><div class="stat-label">Purchased This Month</div><div class="stat-value" id="purMo">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Current Stock</div><div class="stat-value" id="purStock" style="color:var(--secondary)">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Total Records</div><div class="stat-value" id="purCnt" style="color:var(--accent)">0</div></div>
+    </div>
+    <div class="glass-card">
+      <h3 class="mb-4">Purchase Records</h3>
+      <div class="table-wrapper">
+        <table class="dgv">
+          <thead><tr><th>Bill No</th><th>Medicine</th><th>Pkg</th><th>I/P</th><th>Q/I</th><th>Qty</th><th>Pur Price</th><th>Sale Price</th><th>Purchase Date</th><th>Supplier</th><th>Batch</th></tr></thead>
+          <tbody id="purHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RETURN HISTORY TAB -->
+  <div id="tab-return" class="tab-panel">
+    <div class="glass-card" style="overflow: visible;">
+      <h3 class="mb-4">Search Medicine Return History</h3>
+      <div class="search-form" style="position: relative; z-index: 10000;">
+        <div class="form-group autocomplete-wrapper">
+          <label>Medicine Name</label>
+          <input type="text" id="retSearch" class="form-control" placeholder="e.g. Panadol" autocomplete="off"/>
+          <div id="retDropdown" class="autocomplete-dropdown"></div>
+        </div>
+        <button class="btn btn-primary" onclick="loadRetHistory()">🔍 Search</button>
+      </div>
+    </div>
+    <div class="dash-grid">
+      <div class="glass-card stat-card"><div class="stat-label">Returned This Month</div><div class="stat-value" id="retMo" style="color:var(--danger)">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Current Stock</div><div class="stat-value" id="retStock" style="color:var(--secondary)">0</div></div>
+      <div class="glass-card stat-card"><div class="stat-label">Total Records</div><div class="stat-value" id="retCnt" style="color:var(--accent)">0</div></div>
+    </div>
+    <div class="glass-card">
+      <h3 class="mb-4">Return Records</h3>
+      <div class="table-wrapper">
+        <table class="dgv">
+          <thead><tr><th>Bill No</th><th>Medicine</th><th>Qty Returned</th><th>Sale Price</th><th>Return Date</th><th>Customer</th></tr></thead>
+          <tbody id="retHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('medicinehistory'); loadTopBar();
+
+// --- Auto-complete Logic ---
+function setupAutocomplete(inputId, dropdownId, loadFn) {
+  const input = document.getElementById(inputId);
+  // Instead of finding dropdownId, we create/use a global one appended to body
+  let dropdown = document.getElementById('globalDropdown');
+  if (!dropdown) {
+    dropdown = document.createElement('div');
+    dropdown.id = 'globalDropdown';
+    dropdown.className = 'autocomplete-dropdown';
+    document.body.appendChild(dropdown);
+  }
+
+  input.addEventListener('input', async () => {
+    const query = input.value.trim();
+    if (query.length < 1) { dropdown.style.display = 'none'; return; }
+    
+    const meds = await window.api.getMedicines(query);
+    dropdown.innerHTML = '';
+    if (meds.length === 0) { dropdown.style.display = 'none'; return; }
+    
+    meds.forEach(m => {
+      const item = document.createElement('div');
+      item.className = 'autocomplete-item';
+      item.textContent = m.medicinename;
+      item.onclick = () => {
+        input.value = m.medicinename;
+        dropdown.style.display = 'none';
+        loadFn(); // Trigger search
+      };
+      dropdown.appendChild(item);
+    });
+
+    // Position fixed to screen based on input rect
+    const rect = input.getBoundingClientRect();
+    dropdown.style.position = 'fixed';
+    dropdown.style.top = rect.bottom + 'px';
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.width = rect.width + 'px';
+    dropdown.style.display = 'block';
+  });
+
+  // Hide dropdown on click outside
+  document.addEventListener('click', e => {
+    if (e.target !== input) dropdown.style.display = 'none';
+  });
+}
+
+setupAutocomplete('saleSearch', 'saleDropdown', loadSaleHistory);
+setupAutocomplete('purSearch', 'purDropdown', loadPurHistory);
+setupAutocomplete('retSearch', 'retDropdown', loadRetHistory);
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Enter key triggers search
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter') {
+    const active = document.querySelector('.tab-panel.active').id;
+    if (active==='tab-sale') loadSaleHistory();
+    else if (active==='tab-purchase') loadPurHistory();
+    else if (active==='tab-return') loadRetHistory();
+  }
+});
+
+async function loadSaleHistory() {
+  const name = document.getElementById('saleSearch').value.trim();
+  if (!name) { showAlert('dummy','Enter a medicine name.'); return; }
+  const r = await window.api.getMedicineSaleHistory(name);
+  document.getElementById('saleMo').textContent = r.monthTotal;
+  document.getElementById('saleStock').textContent = r.currentStock;
+  document.getElementById('saleCnt').textContent = r.items.length;
+  buildTable('saleHistBody', r.items, [
+    {key:'billno'},{key:'medicinename'},
+    {key:'quantity'},{key:'saleprice'},{key:'saledate'},{key:'customername'}
+  ]);
+}
+
+async function loadPurHistory() {
+  const name = document.getElementById('purSearch').value.trim();
+  if (!name) return;
+  const r = await window.api.getMedicinePurchaseHistory(name);
+  document.getElementById('purMo').textContent = r.monthTotal;
+  document.getElementById('purStock').textContent = r.currentStock;
+  document.getElementById('purCnt').textContent = r.items.length;
+  buildTable('purHistBody', r.items, [
+    {key:'billno'},{key:'medicinename'},
+    {key:'packagingtype'},{key:'itemsperpack'},{key:'qtyperitem'},
+    {key:'quantity'},{key:'purchaseprice'},{key:'saleprice'},{key:'purchasedate'},{key:'suppliername'},{key:'batchno'}
+  ]);
+}
+
+async function loadRetHistory() {
+  const name = document.getElementById('retSearch').value.trim();
+  if (!name) return;
+  const r = await window.api.getMedicineReturnHistory(name);
+  document.getElementById('retMo').textContent = r.monthTotal;
+  document.getElementById('retStock').textContent = r.currentStock;
+  document.getElementById('retCnt').textContent = r.items.length;
+  buildTable('retHistBody', r.items, [
+    {key:'billno'},{key:'medicinename'},
+    {key:'quantity'},{key:'saleprice'},{key:'returndate'},{key:'customername'}
+  ]);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Medicines</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<style>
+  .inventory-header-grid { display: flex; gap: 32px; align-items: flex-start; margin-bottom: 32px; }
+  .form-section { flex: 1; }
+  .summary-section { width: 320px; display: flex; flex-direction: column; gap: 16px; }
+  .stat-card-mini { padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .stat-card-mini .stat-label { font-size: 11px; margin-bottom: 0; }
+  .stat-card-mini .stat-value { font-size: 18px; }
+</style>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>💊 Inventory Management</h1>
+  </div>
+
+  <div class="inventory-header-grid">
+    <div class="glass-card form-section">
+      <div class="card-title">Add / Edit Medicine</div>
+      <div id="alertMsg" class="alert"></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Medicine Name *</label><input type="text" id="txtMedName" class="form-control" placeholder="Product name"/></div>
+        <div class="form-group"><label>Salt / Generic</label><select id="cmbSalt" class="form-control"><option value="">-- Select Salt --</option></select></div>
+        <div class="form-group"><label>Category</label><select id="cmbCatName" class="form-control"><option value="">-- Select --</option></select></div>
+        <div class="form-group"><label>Supplier</label><select id="cmbSupId" class="form-control"><option value="">-- Select --</option></select></div>
+        <div class="form-group"><label>Current Stock (Units)</label><input type="number" id="txtQuantity" class="form-control" placeholder="0"/></div>
+        <div class="form-group"><label>Low Stock Alert (Qty)</label><input type="number" id="txtLowStock" class="form-control" value="4"/></div>
+        <div class="form-group"><label>Batch No</label><input type="text" id="txtBatchNo" class="form-control" placeholder="B-0000"/></div>
+        <div class="form-group"><label>Expiry Date</label><input type="date" id="dtpExpiry" class="form-control"/></div>
+        <div class="form-group"><label>Purchase Price</label><input type="number" id="txtPurPrice" class="form-control" placeholder="0.00" step="0.01"/></div>
+        <div class="form-group"><label>Sale Price</label><input type="number" id="txtSalePrice" class="form-control" placeholder="0.00" step="0.01"/></div>
+        <div class="form-group"><label>Barcode</label><input type="text" id="txtBarCode" class="form-control" placeholder="Scan or type..."/></div>
+        <div class="form-group">
+          <label>Packaging</label>
+          <select id="cmbPackType" class="form-control">
+            <option value="">-- Select --</option><option value="Box">Box</option><option value="Bottle">Bottle</option><option value="Sachet">Sachet</option><option value="Strip">Strip</option><option value="Single Unit">Single Unit</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Strips per Pkg</label><input type="number" id="txtStripsPerPkg" class="form-control" value="1"/></div>
+        <div class="form-group"><label>Qty per Unit</label><input type="number" id="txtQtyPerStrip" class="form-control" value="1"/></div>
+        <div class="form-group"><label>Packs in Stock</label><input type="number" id="txtPacksInStock" class="form-control" value="0"/></div>
+        <div class="form-group"><label>Calculated Profit</label><input type="text" id="txtProfit" class="form-control" readonly style="font-weight:800; color:var(--secondary);"/></div>
+      </div>
+      <div class="flex gap-4 mt-8">
+        <button class="btn btn-primary" id="btnAdd">Add Medicine</button>
+        <button class="btn btn-warning" id="btnUpdate">Update Record</button>
+        <button class="btn btn-danger" id="btnDelete">Delete Item</button>
+        <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Overall Summary Stats -->
+    <div class="summary-section" id="stockSummary">
+      <div class="glass-card stat-card-mini" style="border-left: 4px solid var(--primary)">
+        <div class="stat-label">Product Types</div>
+        <div class="stat-value" id="sSItems">—</div>
+      </div>
+      <div class="glass-card stat-card-mini" style="border-left: 4px solid var(--accent)">
+        <div class="stat-label">Total Units</div>
+        <div class="stat-value" id="sSQty">—</div>
+      </div>
+      <div class="glass-card stat-card-mini" style="border-left: 4px solid var(--text-muted)">
+        <div class="stat-label">Inventory Cost</div>
+        <div class="stat-value" id="sSCost" style="font-size: 15px;">—</div>
+      </div>
+      <div class="glass-card stat-card-mini" style="border-left: 4px solid var(--secondary)">
+        <div class="stat-label">Est. Net Profit</div>
+        <div class="stat-value" id="sSProfit" style="font-size: 15px; color:var(--secondary)">—</div>
+      </div>
+      
+      <div class="glass-card p-4 mt-4" style="background:var(--primary-glow); border-color:var(--primary)">
+        <div style="font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px;">Inventory Tip</div>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Low stock items are automatically highlighted in <b>Gold</b>, and out of stock in <b>Red</b>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="flex justify-between items-center mb-8">
+      <div class="card-title" style="margin-bottom:0">Medicine Database</div>
+      <div class="form-group" style="min-width:400px; margin-bottom:0">
+        <input type="text" id="txtSearch" class="form-control" placeholder="🔍 Search by Name, Salt, or Barcode..."/>
+      </div>
+    </div>
+    <div id="topScrollContainer" style="overflow-x: auto; overflow-y: hidden; height: 20px; border-radius: var(--radius-md) var(--radius-md) 0 0; display: none;">
+      <div id="topScrollDummy" style="height: 20px;"></div>
+    </div>
+    <div class="table-wrapper" id="mainTableWrapper" style="border-radius: 0 0 var(--radius-md) var(--radius-md); overflow-x: auto;">
+      <table class="dgv" id="medTable" style="min-width: 1400px;">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Medicine Name</th>
+            <th>Salt / Generic</th>
+            <th>Category</th>
+            <th>Supplier</th>
+            <th>Stock</th>
+            <th>Packs</th>
+            <th>Alert</th>
+            <th>Batch</th>
+            <th>Expiry</th>
+            <th>Packaging</th>
+            <th>Purchase</th>
+            <th>Sale</th>
+            <th>Profit</th>
+            <th>Barcode</th>
+          </tr>
+        </thead>
+        <tbody id="medBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<script src="../js/common.js"></script>
+<script>
+// --- Double Scrollbar Logic ---
+function initDoubleScroll() {
+  const topScroll = document.getElementById('topScrollContainer');
+  const topDummy = document.getElementById('topScrollDummy');
+  const tableWrapper = document.getElementById('mainTableWrapper');
+  const table = document.getElementById('medTable');
+
+  if (!topScroll || !topDummy || !tableWrapper || !table) return;
+
+  // Set dummy width to match table width
+  const updateWidth = () => {
+    const tableWidth = table.offsetWidth;
+    topDummy.style.width = tableWidth + 'px';
+    // Show top scroll only if table is wider than wrapper
+    if (tableWidth > tableWrapper.offsetWidth) {
+      topScroll.style.display = 'block';
+    } else {
+      topScroll.style.display = 'none';
+    }
+  };
+
+  // Sync scroll positions
+  topScroll.onscroll = () => {
+    tableWrapper.scrollLeft = topScroll.scrollLeft;
+  };
+  tableWrapper.onscroll = () => {
+    topScroll.scrollLeft = tableWrapper.scrollLeft;
+  };
+
+  // Initial update and on window resize
+  updateWidth();
+  window.addEventListener('resize', updateWidth);
+  
+  // Also update when content might change
+  const observer = new MutationObserver(updateWidth);
+  observer.observe(document.getElementById('medBody'), { childList: true });
+}
+
+requireAuthWithAccess('medicines'); loadTopBar();
+initDoubleScroll();
+let selectedId = null;
+
+async function loadDropdowns() {
+  const [cats, sups, salts] = await Promise.all([window.api.getCategories(), window.api.getSuppliers(), window.api.getSalts()]);
+  const catSel = document.getElementById('cmbCatName');
+  cats.forEach(c => catSel.innerHTML += `<option value="${c.categoryname}">${c.categoryname}</option>`);
+  const supSel = document.getElementById('cmbSupId');
+  sups.forEach(s => supSel.innerHTML += `<option value="${s.id}">${s.suppliername}</option>`);
+  const saltSel = document.getElementById('cmbSalt');
+  salts.forEach(s => saltSel.innerHTML += `<option value="${s.saltname}">${s.saltname}</option>`);
+}
+
+async function loadMedicines(search='') {
+  const meds = await window.api.getMedicines(search);
+  const tbody2 = document.getElementById('medBody');
+  tbody2.innerHTML = '';
+  meds.forEach(med => {
+    const tr = document.createElement('tr');
+    if (med.quantity <= 0) tr.classList.add('qty-zero');
+    else if (med.quantity <= (med.lowstockthreshold||4)) tr.classList.add('low-stock-row');
+    const profit = (parseFloat(med.saleprice)||0) - (parseFloat(med.purchaseprice)||0);
+    const profColor = profit >= 0 ? '#2e7d32' : '#c62828';
+    const pkgStr = med.packagingtype ? `${med.packagingtype}/${med.stripsperpkg||1}x${med.qtyperstripunit||1}` : '';
+    tr.innerHTML = `<td>${med.id}</td><td><b>${med.medicinename}</b></td><td style="color:#00897b">${med.salt||''}</td>
+      <td>${med.medicinecategory||''}</td><td>${med.supplierid||''}</td>
+      <td style="font-weight:700;color:${med.quantity<=0?'#c62828':med.quantity<=(med.lowstockthreshold||4)?'#f57f17':'inherit'}">${med.quantity}</td>
+      <td style="font-weight:700;color:var(--accent);">${med.packsinstock||0}</td>
+      <td>${med.lowstockthreshold||4}</td><td>${med.batchno||''}</td><td>${med.expiry||''}</td>
+      <td style="font-size:11px;color:var(--accent)">${pkgStr}</td>
+      <td>${parseFloat(med.purchaseprice||0).toFixed(2)}</td><td>${parseFloat(med.saleprice||0).toFixed(2)}</td>
+      <td style="font-weight:700;color:${profColor}">${formatCurrency(profit)}</td>
+      <td>${med.barcode||''}</td>`;
+    tr.dataset.packsinstock = med.packsinstock||0;
+    tr.addEventListener('click', () => {
+      tbody2.querySelectorAll('tr').forEach(r=>r.classList.remove('selected'));
+      tr.classList.add('selected');
+      // Fill form
+      selectedId=med.id;
+      document.getElementById('txtMedName').value=med.medicinename||'';
+      document.getElementById('cmbSalt').value=med.salt||'';
+      document.getElementById('cmbCatName').value=med.medicinecategory||'';
+      document.getElementById('cmbSupId').value=med.supplierid||'';
+      document.getElementById('txtQuantity').value=med.quantity||0;
+      document.getElementById('txtLowStock').value=med.lowstockthreshold||4;
+      document.getElementById('txtBatchNo').value=med.batchno||'';
+      document.getElementById('dtpExpiry').value=med.expiry||'';
+      document.getElementById('txtPurPrice').value=med.purchaseprice||'';
+      document.getElementById('txtSalePrice').value=med.saleprice||'';
+      document.getElementById('txtBarCode').value=med.barcode||'';
+      document.getElementById('cmbPackType').value=med.packagingtype||'';
+      document.getElementById('txtStripsPerPkg').value=med.stripsperpkg||1;
+      document.getElementById('txtQtyPerStrip').value=med.qtyperstripunit||1;
+      document.getElementById('txtPacksInStock').value=med.packsinstock||0;
+      calcProfit();
+    });
+    tbody2.appendChild(tr);
+  });
+
+}
+
+function clearForm() {
+  selectedId = null;
+  ['txtMedName','txtQuantity','txtLowStock','txtBatchNo','dtpExpiry','txtPurPrice','txtSalePrice','txtBarCode'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('cmbSalt').value='';
+  document.getElementById('cmbCatName').value='';
+  document.getElementById('cmbSupId').value='';
+  document.getElementById('txtLowStock').value='4';
+  document.getElementById('txtProfit').value='';
+  document.getElementById('cmbPackType').value='';
+  document.getElementById('txtStripsPerPkg').value='1';
+  document.getElementById('txtQtyPerStrip').value='1';
+  document.getElementById('txtPacksInStock').value='0';
+}
+
+function getFormData() {
+  return {
+    medicinename: document.getElementById('txtMedName').value.trim(),
+    salt: document.getElementById('cmbSalt').value||null,
+    medicinecategory: document.getElementById('cmbCatName').value||null,
+    supplierid: document.getElementById('cmbSupId').value||null,
+    quantity: parseInt(document.getElementById('txtQuantity').value)||0,
+    lowstockthreshold: parseInt(document.getElementById('txtLowStock').value)||4,
+    batchno: document.getElementById('txtBatchNo').value.trim()||null,
+    expiry: document.getElementById('dtpExpiry').value||null,
+    purchaseprice: parseFloat(document.getElementById('txtPurPrice').value)||0,
+    saleprice: parseFloat(document.getElementById('txtSalePrice').value)||0,
+    barcode: document.getElementById('txtBarCode').value.trim()||null,
+    packagingtype: document.getElementById('cmbPackType').value||null,
+    stripsperpkg: parseInt(document.getElementById('txtStripsPerPkg').value)||1,
+    qtyperstripunit: parseInt(document.getElementById('txtQtyPerStrip').value)||1,
+    packsinstock: parseInt(document.getElementById('txtPacksInStock').value)||0
+  };
+}
+
+document.getElementById('txtSearch').addEventListener('input', e => loadMedicines(e.target.value));
+
+// Auto-calculate profit
+function calcProfit() {
+  const sp = parseFloat(document.getElementById('txtSalePrice').value)||0;
+  const pp = parseFloat(document.getElementById('txtPurPrice').value)||0;
+  const prof = sp - pp;
+  const el = document.getElementById('txtProfit');
+  el.value = formatCurrency(prof);
+  el.style.color = prof >= 0 ? '#2e7d32' : '#c62828';
+}
+document.getElementById('txtSalePrice').addEventListener('input', calcProfit);
+document.getElementById('txtPurPrice').addEventListener('input', calcProfit);
+
+document.getElementById('btnAdd').onclick = async () => {
+  const d = getFormData();
+  if (!d.medicinename) { showAlert('alertMsg','Medicine name is required.'); return; }
+  await window.api.addMedicine(d);
+  showAlert('alertMsg','Medicine added!','success'); clearForm(); loadMedicines();
+};
+
+document.getElementById('btnUpdate').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Select a medicine to update.'); return; }
+  const d = getFormData(); d.id = selectedId;
+  if (!d.medicinename) { showAlert('alertMsg','Medicine name is required.'); return; }
+  await window.api.updateMedicine(d);
+  showAlert('alertMsg','Medicine updated!','success'); clearForm(); loadMedicines();
+};
+
+document.getElementById('btnDelete').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Select a medicine to delete.'); return; }
+  if (!confirm('Delete this medicine?')) return;
+  await window.api.deleteMedicine(selectedId);
+  showAlert('alertMsg','Deleted.','success'); clearForm(); loadMedicines();
+};
+
+loadDropdowns().then(() => loadMedicines());
+
+async function loadStockSummary() {
+  const s = await window.api.getStockSummary();
+  if (!s) return;
+  document.getElementById('sSItems').textContent = s.totalItems || 0;
+  document.getElementById('sSQty').textContent   = s.totalQty   || 0;
+  document.getElementById('sSCost').textContent   = 'Rs ' + formatCurrency(s.totalCostValue||0);
+  document.getElementById('sSSale').textContent   = 'Rs ' + formatCurrency(s.totalSaleValue||0);
+  document.getElementById('sSProfit').textContent = 'Rs ' + formatCurrency(s.totalPotentialProfit||0);
+}
+loadStockSummary();
+</script>
+</body>
+</html>

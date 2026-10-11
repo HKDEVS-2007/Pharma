@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Purchase</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  input[readonly].form-control { background:rgba(0,0,0,0.1); cursor:not-allowed; border-color: transparent; }
+  .packaging-section {
+    background: rgba(16, 185, 129, 0.03);
+    border: 1px dashed var(--secondary);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    margin-bottom: 32px;
+  }
+  .packaging-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #packResult {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--bg-app);
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--secondary);
+    animation: fadeIn 0.3s ease;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>🏭 Inventory Purchase</h1>
+    <div class="flex gap-4" style="margin-left:auto;">
+      <span class="badge update-badge">F4: Print Draft</span>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div id="alertMsg" class="alert"></div>
+    
+    <div class="form-grid mb-8">
+      <div class="form-group"><label>Supplier Bill No *</label>
+        <input type="text" id="txtBillNo" class="form-control" placeholder="Supplier's bill number"/>
+      </div>
+      <div class="form-group"><label>Supplier Name</label>
+        <select id="cmbSupplierName" class="form-control"><option value="">-- Select Supplier --</option></select>
+      </div>
+      <div class="form-group"><label>Supplier ID</label>
+        <input type="text" id="txtSupplierId" class="form-control" readonly placeholder="Auto" style="color:var(--primary);"/>
+      </div>
+      <div class="form-group"><label>Purchase Date</label>
+        <input type="date" id="dtpDate" class="form-control"/>
+      </div>
+    </div>
+
+    <!-- PACKAGING CALCULATOR -->
+    <div class="packaging-section">
+      <div class="packaging-title">📦 Packaging & Unit Price Calculator</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Packaging Type</label>
+          <select id="packType" class="form-control">
+            <option value="">-- None --</option>
+            <option value="Box">Box</option>
+            <option value="Carton">Carton</option>
+            <option value="Pack">Pack</option>
+            <option value="Bottle">Bottle</option>
+            <option value="Strip">Strip</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Units per Pack</label>
+          <input type="number" id="packItemsPerBox" class="form-control" placeholder="e.g. 10" min="1"/>
+        </div>
+        <div class="form-group">
+          <label>Sub-units per Unit</label>
+          <input type="number" id="packQtyPerItem" class="form-control" placeholder="e.g. 10" min="1"/>
+        </div>
+        <div class="form-group">
+          <label>Pack Price (Rs)</label>
+          <input type="number" id="packBoxPrice" class="form-control" placeholder="0.00" min="0" step="0.01"/>
+        </div>
+        <div class="form-group">
+          <label>No. of Packs</label>
+          <input type="number" id="packNumBoxes" class="form-control" placeholder="1" min="1" value="1"/>
+        </div>
+        <div class="form-group">
+          <label>Margin (%)</label>
+          <input type="number" id="packMargin" class="form-control" placeholder="15" min="0" max="200" value="15"/>
+        </div>
+      </div>
+      <div class="flex gap-4 mt-6 items-center">
+        <button class="btn btn-success" onclick="calcPackaging()" style="padding: 10px 24px;">⚡ Calculate</button>
+        <button class="btn btn-secondary" onclick="clearPackaging()" style="padding: 10px 20px;">✕ Clear</button>
+        <div id="packResult" style="display:none; flex:1; margin-top:0;"></div>
+      </div>
+    </div>
+
+    <div class="table-wrapper" style="max-height:450px; border-radius: var(--radius-md); overflow: auto;">
+      <table class="dgv" style="min-width: 1000px;">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th>Medicine Name</th>
+            <th style="width:110px">Batch</th>
+            <th style="width:140px">Expiry</th>
+            <th style="width:70px; text-align:center;">Packs</th>
+            <th style="width:70px; text-align:center;">Qty/U</th>
+            <th style="width:90px; text-align:center;">Qty</th>
+            <th style="width:120px; text-align:right;">Pur. Price</th>
+            <th style="width:120px; text-align:right;">Sale Price</th>
+            <th style="width:130px; text-align:right;">Line Total</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="purBody"></tbody>
+      </table>
+    </div>
+
+    <div class="totals-grid">
+      <div class="total-item">
+        <label class="total-label">Subtotal Amount</label>
+        <input type="text" id="txtNA" class="form-control total-value-input" readonly style="color:var(--text-main);"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Bill Discount</label>
+        <input type="number" id="txtDis" class="form-control" placeholder="0.00" style="font-size: 18px; font-weight: 700;"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Grand Total</label>
+        <input type="text" id="txtTA" class="form-control total-value-input" readonly style="color:var(--secondary);"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Estimated Profit</label>
+        <input type="text" id="txtPurProfit" class="form-control total-value-input" readonly style="color:var(--primary);"/>
+      </div>
+    </div>
+    
+    <div class="flex gap-4 mt-8 justify-end">
+        <button class="btn btn-secondary" onclick="doPrint()" style="padding: 16px 32px;">🖨 Print (F4)</button>
+        <button class="btn btn-primary" id="btnSave" style="padding: 16px 48px; min-width: 220px;">💾 Save Purchase</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('purchase');
+loadTopBar();
+
+let purItems       = [];
+let editingRow     = -1;
+let selectedRowIdx = -1;
+let suppliers      = [];
+
+function clearPackaging() {
+  ['packType','packItemsPerBox','packQtyPerItem','packBoxPrice','packNumBoxes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.tagName==='SELECT' ? el.value='' : el.value=''; }
+  });
+  document.getElementById('packNumBoxes').value = '1';
+  document.getElementById('packMargin').value = '15';
+  const r = document.getElementById('packResult');
+  if (r) r.style.display = 'none';
+}
+
+function calcPackaging() {
+  const type        = document.getElementById('packType').value;
+  const itemsPerBox = parseFloat(document.getElementById('packItemsPerBox').value)||1;
+  const qtyPerItem  = parseFloat(document.getElementById('packQtyPerItem').value)||1;
+  const boxPrice    = parseFloat(document.getElementById('packBoxPrice').value)||0;
+  const numBoxes    = parseFloat(document.getElementById('packNumBoxes').value)||1;
+  const margin      = parseFloat(document.getElementById('packMargin').value)||15;
+
+  if (!boxPrice) { showAlert('alertMsg','Enter the box/pack price first.'); return; }
+
+  const totalUnits   = itemsPerBox * qtyPerItem * numBoxes;
+  const totalCost    = boxPrice * numBoxes;
+  const purPriceUnit = totalCost / totalUnits;
+  const salePriceUnit = purPriceUnit * (1 + margin/100);
+
+  const resultDiv = document.getElementById('packResult');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = `
+    <div class="flex items-center justify-between">
+      <div style="font-size:12px; line-height:1.4">
+        <b>${numBoxes} ${type||'unit'}(s)</b> → <b>${totalUnits}</b> total sub-units<br/>
+        Cost/unit: <b>Rs ${purPriceUnit.toFixed(2)}</b> | Sale/unit: <b>Rs ${salePriceUnit.toFixed(2)}</b>
+      </div>
+      <button class="btn btn-primary" style="padding:6px 16px; font-size:11px;" onclick="applyPackagingToCurrentRow('${type}',${itemsPerBox},${qtyPerItem},${boxPrice},${numBoxes},${purPriceUnit.toFixed(4)},${salePriceUnit.toFixed(4)},${totalUnits})">
+        Apply Row
+      </button>
+    </div>`;
+}
+
+function applyPackagingToCurrentRow(type, ipp, qpi, bp, nb, pp, sp, totalUnits) {
+  const idx = editingRow >= 0 ? editingRow : purItems.length - 1;
+  if (idx < 0 || !purItems[idx]) { showAlert('alertMsg','No row to apply to. Add a medicine row first.'); return; }
+  purItems[idx].purchaseprice = parseFloat(pp);
+  purItems[idx].saleprice     = parseFloat(sp);
+  purItems[idx].quantity      = parseInt(totalUnits);
+  purItems[idx].packs         = parseFloat(nb);
+  purItems[idx].packagingtype = type;
+  purItems[idx].itemsperpack  = parseFloat(ipp);
+  purItems[idx].qtyperitem    = parseFloat(qpi);
+  purItems[idx].packprice     = parseFloat(bp);
+  renderTable();
+  focusQty(idx);
+  showAlert('alertMsg', `Applied: ${totalUnits} units @ Rs ${parseFloat(pp).toFixed(2)}`, 'success');
+}
+
+async function init() {
+  document.getElementById('dtpDate').value = todayStr();
+  suppliers = await window.api.getSuppliers();
+  const sel = document.getElementById('cmbSupplierName');
+  suppliers.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.suppliername}</option>`);
+  sel.addEventListener('change', () => {
+    const sup = suppliers.find(s => s.id == sel.value);
+    document.getElementById('txtSupplierId').value = sup ? sup.id : '';
+  });
+  addRow(false);
+  setTimeout(() => { const el=document.getElementById('qty_0'); if(el) el.focus(); }, 200);
+
+  registerMedicineSelectedListener(med => {
+    if (editingRow < 0 || editingRow >= purItems.length) return;
+    Object.assign(purItems[editingRow], {
+      medicineid: med.id, medicinename: med.medicinename,
+      batchno: med.batchno||'', expiry: med.expiry||'',
+      purchaseprice: med.purchaseprice||'', saleprice: med.saleprice||'',
+      packagingtype: med.packagingtype||'', itemsperpack: med.stripsperpkg||1,
+      qtyperitem: med.qtyperstripunit||1
+    });
+    renderTable();
+    focusQty(editingRow);
+  });
+
+  // Global barcode scanner
+  let _bcBuf='',_bcTimer=null;
+  document.addEventListener('keydown', e => {
+    if(e.key==='Enter'&&_bcBuf.length>=3){
+      e.stopPropagation(); const code=_bcBuf.trim(); _bcBuf=''; clearTimeout(_bcTimer);
+      (async()=>{
+        const med=await window.api.getMedicineByBarcode(code);
+        if(!med){showAlert('alertMsg',`No medicine for barcode: ${code}`);return;}
+        const existing=purItems.find(i=>i.medicineid===med.id);
+        if(existing){existing.quantity=(parseFloat(existing.quantity)||0)+1;renderTable();showAlert('alertMsg',`"${med.medicinename}" qty → ${existing.quantity}`,'success');return;}
+        const newItem={medicineid:med.id,medicinename:med.medicinename,batchno:med.batchno||'',expiry:med.expiry||'',packs:0,quantity:1,purchaseprice:med.purchaseprice||0,saleprice:med.saleprice||0,packagingtype:med.packagingtype||'',itemsperpack:med.stripsperpkg||1,qtyperitem:med.qtyperstripunit||1};
+        const emptyIdx=purItems.findIndex(i=>!i.medicineid);
+        if(emptyIdx>=0){Object.assign(purItems[emptyIdx],newItem);renderTable();focusQty(emptyIdx);}
+        else{const idx=purItems.length;purItems.push(newItem);renderTable();focusQty(idx);}
+      })();
+      return;
+    }
+    if(e.key.length===1&&!e.ctrlKey&&!e.altKey){_bcBuf+=e.key;clearTimeout(_bcTimer);_bcTimer=setTimeout(()=>{_bcBuf='';},150);}
+  },true);
+
+  document.addEventListener('keydown', e => {
+    if (e.key==='F4') { e.preventDefault(); doPrint(); }
+    if (e.key==='Escape' && selectedRowIdx>=0) removeRow(selectedRowIdx);
+  });
+}
+
+function addRow(doFocus=true) {
+  const idx = purItems.length;
+  purItems.push({ medicineid:'', medicinename:'', batchno:'', expiry:'', packs:0, itemsperpack:1, qtyperitem:1, quantity:1, purchaseprice:'', saleprice:'', packagingtype:'', packprice:0 });
+  renderTable();
+  if (doFocus) focusQty(idx);
+}
+
+function focusQty(idx) {
+  setTimeout(() => { const el=document.getElementById(`qty_${idx}`); if(el){el.focus();el.select();} }, 40);
+}
+function focusField(id) {
+  setTimeout(() => { const el=document.getElementById(id); if(el){el.focus();el.select();} }, 40);
+}
+
+function renderTable() {
+  const tbody = document.getElementById('purBody');
+  tbody.innerHTML = ''; selectedRowIdx = -1;
+  purItems.forEach((item, idx) => {
+    const qty = parseFloat(item.quantity)||1;
+    const pp  = parseFloat(item.purchaseprice)||0;
+    const lt  = qty * pp;
+    const tr  = document.createElement('tr');
+    tr.dataset.idx = idx;
+    tr.innerHTML = `
+      <td style="color:var(--text-muted); font-size:11px;">${idx+1}</td>
+      <td>
+        <div style="font-weight:700; color:var(--text-main)">${item.medicinename || '<span style="opacity:0.3; font-weight:400">Pick medicine...</span>'}</div>
+        <div style="font-size:10px; color:var(--accent); opacity:0.8">${item.batchno || ''}</div>
+      </td>
+      <td><input type="text" id="bt_${idx}" class="form-control bill-bt" data-idx="${idx}"
+            style="padding:6px; font-size:12px;" value="${item.batchno||''}" placeholder="Batch"/></td>
+      <td><input type="date" id="ex_${idx}" class="form-control bill-ex" data-idx="${idx}"
+            style="padding:6px; font-size:12px;" value="${item.expiry||''}"/></td>
+      <td><input type="number" id="packs_${idx}" class="form-control bill-packs" data-idx="${idx}"
+            style="padding:6px; width:60px; text-align:center;" value="${item.packs||0}" min="0"/></td>
+      <td><input type="number" id="qpu_${idx}" class="form-control bill-qpu" data-idx="${idx}"
+            style="padding:6px; width:60px; text-align:center;" value="${item.qtyperitem||1}" min="1"/></td>
+      <td><input type="number" id="qty_${idx}" class="form-control bill-qty" data-idx="${idx}"
+            style="padding:6px; width:70px; font-weight:800; text-align:center; border-color:var(--primary-glow)" 
+            value="${qty}" min="1"/></td>
+      <td><input type="number" id="pp_${idx}" class="form-control bill-pp" data-idx="${idx}"
+            style="padding:6px; width:90px; font-weight:600; text-align:right" value="${item.purchaseprice||''}" min="0" step="0.01"/></td>
+      <td><input type="number" id="sp_${idx}" class="form-control bill-sp" data-idx="${idx}"
+            style="padding:6px; width:90px; font-weight:600; text-align:right" value="${item.saleprice||''}" min="0" step="0.01"/></td>
+      <td style="text-align:right">
+        <div style="font-weight:700; color:var(--secondary)" class="lt-cell">${lt>0?formatCurrency(lt):'0.00'}</div>
+      </td>
+      <td style="text-align:center">
+        <button class="btn btn-danger bill-del" data-idx="${idx}" 
+                style="padding:4px 8px; font-size:10px; min-width:unset; border-radius:6px" tabindex="-1">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  calcTotals();
+}
+
+let _delegationReady = false;
+function setupDelegation() {
+  if (_delegationReady) return; _delegationReady = true;
+  const tbody = document.getElementById('purBody');
+
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    if (e.target.matches('.bill-del')) { removeRow(parseInt(e.target.dataset.idx)); return; }
+    tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('selected'));
+    tr.classList.add('selected'); selectedRowIdx = parseInt(tr.dataset.idx);
+  });
+
+  tbody.addEventListener('keydown', e => {
+    const el=e.target; const idx=parseInt(el.dataset.idx);
+    if (el.matches('.bill-qty')) {
+      if (e.key==='Enter') {
+        e.preventDefault();
+        if (!purItems[idx]||!purItems[idx].medicineid) { editingRow=idx; window.api.openMedicineSelection(); return; }
+        purItems[idx].quantity=parseFloat(el.value)||1; calcTotals();
+        focusField(`pp_${idx}`); return;
+      }
+      if (e.key==='Escape') { e.preventDefault(); removeRow(idx); }
+    }
+    if (el.matches('.bill-pp') && e.key==='Enter') {
+      e.preventDefault();
+      purItems[idx].purchaseprice=parseFloat(el.value)||0; calcTotals();
+      focusField(`sp_${idx}`);
+    }
+    if (el.matches('.bill-sp') && e.key==='Enter') {
+      e.preventDefault();
+      purItems[idx].saleprice=parseFloat(el.value)||0;
+      if (idx===purItems.length-1) addRow(true); else focusQty(idx+1);
+    }
+  });
+
+  tbody.addEventListener('input', e => {
+    const el=e.target; const idx=parseInt(el.dataset.idx);
+    if (!purItems[idx]) return;
+    if (el.matches('.bill-qty')) purItems[idx].quantity      = parseFloat(el.value)||1;
+    if (el.matches('.bill-packs')) purItems[idx].packs      = parseFloat(el.value)||0;
+    if (el.matches('.bill-qpu')) purItems[idx].qtyperitem   = parseFloat(el.value)||1;
+    if (el.matches('.bill-pp'))  purItems[idx].purchaseprice = parseFloat(el.value)||0;
+    if (el.matches('.bill-sp'))  purItems[idx].saleprice     = parseFloat(el.value)||0;
+    if (el.matches('.bill-bt'))  purItems[idx].batchno       = el.value;
+    if (el.matches('.bill-ex'))  purItems[idx].expiry        = el.value;
+    
+    const rows=tbody.querySelectorAll('tr');
+    if (rows[idx]) {
+      const lc=rows[idx].querySelector('.lt-cell');
+      const qty=parseFloat(purItems[idx].quantity)||0;
+      const pp=parseFloat(purItems[idx].purchaseprice)||0;
+      if(lc) lc.textContent= (qty*pp)>0 ? formatCurrency(qty*pp) : '0.00';
+    }
+    calcTotals();
+  });
+}
+
+function calcTotals() {
+  let net=0, totalProfit=0;
+  purItems.forEach(i=>{
+    const qty=parseFloat(i.quantity)||0;
+    const pp=parseFloat(i.purchaseprice)||0;
+    const sp=parseFloat(i.saleprice)||0;
+    net += qty*pp;
+    if (i.medicineid && sp>0) totalProfit += (sp-pp)*qty;
+  });
+  document.getElementById('txtNA').value=formatCurrency(net);
+  const dis=parseFloat(document.getElementById('txtDis').value)||0;
+  document.getElementById('txtTA').value=formatCurrency(Math.max(0,net-dis));
+  const pe=document.getElementById('txtPurProfit');
+  if(pe) pe.value=formatCurrency(totalProfit);
+}
+document.getElementById('txtDis').addEventListener('input',calcTotals);
+
+function removeRow(idx) {
+  const med=purItems[idx];
+  if(med&&med.medicinename&&!confirm(`Remove "${med.medicinename}"?`)) return;
+  purItems.splice(idx,1); selectedRowIdx=-1;
+  if(purItems.length===0) addRow(true); else renderTable();
+}
+
+async function doPrint() {
+  const valid=purItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','No items.','warning');return;}
+  const [settings,user]=[await window.api.getSettings(),getSession()];
+  await window.api.printBill({type:'purchase',billno:document.getElementById('txtBillNo').value,
+    items:valid.map(i=>({...i,saleprice:i.purchaseprice})),
+    header:{pharmacyname:settings.pharmacyname,logo:settings.pharmacylogo,address:settings.pharmacyaddress,description:settings.pharmacydescription,user:user.username},
+    totals:{netamount:parseFloat(document.getElementById('txtNA').value)||0,discount:parseFloat(document.getElementById('txtDis').value)||0,totalamount:parseFloat(document.getElementById('txtTA').value)||0}});
+}
+
+document.getElementById('btnSave').onclick = async () => {
+  const valid=purItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','Add at least one item.');return;}
+  const billno=document.getElementById('txtBillNo').value.trim();
+  if(!billno){showAlert('alertMsg','Enter the supplier bill number.');return;}
+  const supId=document.getElementById('cmbSupplierName').value;
+  const sup=suppliers.find(s=>s.id==supId);
+  const netamount=parseFloat(document.getElementById('txtNA').value)||0;
+  const discount=parseFloat(document.getElementById('txtDis').value)||0;
+  const totalamount=parseFloat(document.getElementById('txtTA').value)||0;
+  const enrichedItems = valid.map(it => ({
+    ...it,
+    packs: it.packs||0,
+    itemsperpack: it.itemsperpack||1,
+    qtyperitem: it.qtyperitem||1,
+    packagingtype: it.packagingtype||null,
+    packprice: it.packprice||0
+  }));
+  const result=await window.api.savePurchaseBill({items:enrichedItems,billno,suppliername:sup?sup.suppliername:'',supplierid:supId||null,purchasedate:document.getElementById('dtpDate').value,netamount,discount,totalamount});
+  if(!result||!result.success){showAlert('alertMsg',(result&&result.error)||'Save failed.');return;}
+  if(confirm('Inventory purchase recorded! Print draft?')) await doPrint();
+  purItems=[];
+  document.getElementById('txtBillNo').value='';
+  document.getElementById('cmbSupplierName').value='';
+  document.getElementById('txtSupplierId').value='';
+  document.getElementById('txtDis').value='';
+  document.getElementById('dtpDate').value=todayStr();
+  addRow(true);
+};
+
+init().then(()=>setupDelegation());
+</script>
+</body>
+</html>

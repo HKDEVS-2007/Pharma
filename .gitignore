@@ -1,0 +1,18 @@
+node_modules/
+.git/
+dist/
+out/
+release/
+*.log
+.env
+.env.*
+!.env.example
+
+# Private pharmacy database
+pharmco.db
+pharma.db
+*.db-wal
+*.db-shm
+
+# Local machine configuration
+netconfig.json

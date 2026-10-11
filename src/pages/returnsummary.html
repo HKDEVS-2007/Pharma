@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Return Summary</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>↩ Return Ledger</h1>
+    <div class="flex gap-4" style="margin-left:auto;">
+      <span class="badge update-badge">F4: Reprint Selected</span>
+    </div>
+  </div>
+
+  <div class="glass-card mb-8">
+    <div class="card-title">Search & Filter Criteria</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Filter by Date</label><input type="date" id="dtpDate" class="form-control" onchange="document.getElementById('dtpMonth').value=''"/></div>
+      <div class="form-group"><label>Filter Month</label><input type="month" id="dtpMonth" class="form-control" onchange="document.getElementById('dtpDate').value=''"/></div>
+      <div class="form-group"><label>Return Bill No</label><input type="text" id="txtfbn" class="form-control" placeholder="Search bill ID..."/></div>
+      <div class="form-group"><label>Customer Name</label><input type="text" id="txtfbcn" class="form-control" placeholder="Search customer..."/></div>
+<div class="flex gap-4 button-group">
+    <button class="btn btn-secondary" onclick="clearFilters()">
+        Clear Filters
+    </button>
+
+    <button class="btn btn-warning" onclick="reprintBill()" title="F4">
+        🖨 Reprint (F4)
+    </button>
+
+    <button class="btn btn-primary" onclick="loadSummary()">
+        🔍 Search Ledger
+    </button>
+</div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title">Ledger Entries</div>
+    <div class="table-wrapper" style="max-height: 500px; overflow-y: auto;">
+      <table class="dgv">
+        <thead>
+          <tr>
+            <th>Bill No</th>
+            <th>Customer</th>
+            <th>Return Date</th>
+            <th>Med ID</th>
+            <th>Medicine</th>
+            <th style="text-align:center">Qty</th>
+            <th style="text-align:right">Refund Price</th>
+            <th style="text-align:right">Net</th>
+            <th style="text-align:right">Disc</th>
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="retBody"></tbody>
+      </table>
+    </div>
+
+    <div class="totals-grid">
+      <div class="total-item">
+        <label class="total-label">Aggregate Refund</label>
+        <input type="text" id="txtNA" class="form-control total-value-input" readonly style="color:var(--text-main);"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Total Deductions</label>
+        <input type="text" id="txtDis" class="form-control total-value-input" readonly style="color:var(--accent);"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Final Gross Refund</label>
+        <input type="text" id="txtTA" class="form-control total-value-input" readonly style="color:var(--secondary);"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('returnsummary'); loadTopBar();
+let currentItems = [];
+
+async function loadSummary() {
+  const date=document.getElementById('dtpDate').value;
+  const month=document.getElementById('dtpMonth').value;
+  const billno=document.getElementById('txtfbn').value.trim();
+  const customer=document.getElementById('txtfbcn').value.trim();
+  const result=await window.api.getReturnSummary({date:date||null, month:month||null, billno:billno||null, customer:customer||null});
+  currentItems=result.items||[];
+  if(billno&&currentItems.length) document.getElementById('dtpDate').value=currentItems[0].returndate||'';
+  
+  buildTable('retBody',currentItems,[
+    {key:'billno'},{key:'customername'},{key:'returndate'},{key:'medicineid'},
+    {key:'medicinename'},
+    {key:'quantity', style:'text-align:center'},
+    {key:'saleprice', render:r=>formatCurrency(r.saleprice)},
+    {key:'netamount',render:r=>r.netamount!=null?formatCurrency(r.netamount):''},
+    {key:'discount',render:r=>r.discount!=null?formatCurrency(r.discount):''},
+    {key:'totalamount',render:r=>r.totalamount!=null?formatCurrency(r.totalamount):''}
+  ]);
+  
+  let na=0,dis=0,ta=0;
+  currentItems.forEach(i=>{if(i.netamount!=null){na+=parseFloat(i.netamount)||0;dis+=parseFloat(i.discount)||0;ta+=parseFloat(i.totalamount)||0;}});
+  document.getElementById('txtNA').value=formatCurrency(na);
+  document.getElementById('txtDis').value=formatCurrency(dis);
+  document.getElementById('txtTA').value=formatCurrency(ta);
+}
+
+async function reprintBill() {
+  const billno=document.getElementById('txtfbn').value.trim();
+  if(!billno){alert('Filter by Bill No first.');return;}
+  const items=currentItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!items.length){alert('No items found.');return;}
+  const settings=await window.api.getSettings();const user=getSession();
+  const last=currentItems.find(i=>i.totalamount!=null)||{};
+  await window.api.printBill({
+    type:'return',
+    billno,
+    items,
+    header:{pharmacyname:settings.pharmacyname,logo:settings.pharmacylogo,address:settings.pharmacyaddress,description:settings.pharmacydescription,user:user.username,customer:items[0].customername||''},
+    totals:{netamount:last.netamount||0,discount:last.discount||0,totalamount:last.totalamount||0}
+  });
+}
+
+function clearFilters(){
+  document.getElementById('dtpDate').value=todayStr();
+  document.getElementById('dtpMonth').value='';
+  document.getElementById('txtfbn').value='';
+  document.getElementById('txtfbcn').value='';
+  loadSummary();
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='F4'){e.preventDefault();reprintBill();}});
+document.getElementById('dtpDate').value=todayStr();
+loadSummary();
+</script>
+</body>
+</html>

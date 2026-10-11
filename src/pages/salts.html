@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Salts</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()" title="Minimize">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()" title="Close">&#10005;</button>
+  </div>
+</div>
+<script>
+async function toggleMax(){
+  window.api.winMaximize();
+  setTimeout(async()=>{
+    const m=await window.api.winIsMaximized();
+    const btn=document.getElementById('winMaxBtn');
+    if(btn)btn.innerHTML=m?'&#10697;':'&#9633;';
+  },80);
+}
+</script>
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>🧪 Salts / Generic Names</h1>
+  </div>
+  
+  <div class="glass-card">
+    <div class="card-title">Add / Edit Salt</div>
+    <div id="alertMsg" class="alert"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Salt / Generic Name *</label>
+        <input type="text" id="txtSaltName" class="form-control" placeholder="e.g. Paracetamol, Amoxicillin"/>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Description</label>
+        <input type="text" id="txtDescription" class="form-control" placeholder="Optional description or usage notes"/>
+      </div>
+    </div>
+    <div class="flex gap-4 mt-8">
+      <button class="btn btn-primary" id="btnAdd">➕ Add Salt</button>
+      <button class="btn btn-warning" id="btnUpdate">✏ Update</button>
+      <button class="btn btn-danger" id="btnDelete">🗑 Delete</button>
+      <button class="btn btn-secondary" onclick="clearForm()">✖ Clear</button>
+    </div>
+  </div>
+  
+  <div class="glass-card">
+    <div class="flex justify-between items-center mb-8">
+      <div class="card-title" style="margin-bottom:0">Salts List</div>
+      <div class="form-group" style="min-width:300px; margin-bottom:0">
+        <input type="text" id="txtSearch" class="form-control" placeholder="🔍 Search salts..."/>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="dgv">
+        <thead><tr><th>ID</th><th>Salt / Generic Name</th><th>Description</th></tr></thead>
+        <tbody id="saltBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('salts'); loadTopBar();
+let selectedId = null;
+let allSalts = [];
+
+async function loadSalts(search='') {
+  allSalts = await window.api.getSalts();
+  const filtered = search ? allSalts.filter(s => s.saltname.toLowerCase().includes(search.toLowerCase())) : allSalts;
+  buildTable('saltBody', filtered, [
+    {key:'id'},{key:'saltname'},{key:'description'}
+  ]);
+  document.getElementById('saltBody').addEventListener('row-selected', e => {
+    const r = e.detail;
+    selectedId = r.id;
+    document.getElementById('txtSaltName').value = r.saltname||'';
+    document.getElementById('txtDescription').value = r.description||'';
+  });
+}
+
+function clearForm() {
+  selectedId = null;
+  document.getElementById('txtSaltName').value = '';
+  document.getElementById('txtDescription').value = '';
+}
+
+document.getElementById('txtSearch').addEventListener('input', e => loadSalts(e.target.value));
+
+document.getElementById('btnAdd').onclick = async () => {
+  const saltname = document.getElementById('txtSaltName').value.trim();
+  if (!saltname) { showAlert('alertMsg','Salt name is required.'); return; }
+  const r = await window.api.addSalt({ saltname, description: document.getElementById('txtDescription').value.trim() });
+  if (r.success) { showAlert('alertMsg','Salt added!','success'); clearForm(); loadSalts(); }
+  else showAlert('alertMsg','Error: ' + r.error);
+};
+
+document.getElementById('btnUpdate').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Select a salt to update.'); return; }
+  const saltname = document.getElementById('txtSaltName').value.trim();
+  if (!saltname) { showAlert('alertMsg','Salt name is required.'); return; }
+  await window.api.updateSalt({ id:selectedId, saltname, description: document.getElementById('txtDescription').value.trim() });
+  showAlert('alertMsg','Salt updated!','success'); clearForm(); loadSalts();
+};
+
+document.getElementById('btnDelete').onclick = async () => {
+  if (!selectedId) { showAlert('alertMsg','Select a salt to delete.'); return; }
+  if (!confirm('Delete this salt?')) return;
+  await window.api.deleteSalt(selectedId);
+  showAlert('alertMsg','Salt deleted.','success'); clearForm(); loadSalts();
+};
+
+loadSalts();
+</script>
+</body>
+</html>

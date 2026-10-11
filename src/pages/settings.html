@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Settings</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  .settings-layout { display: flex; gap: 32px; align-items: flex-start; }
+  .settings-tabs { width: 240px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; }
+  .settings-tab {
+    padding: 16px 20px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .settings-tab:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+  .settings-tab.active { background: var(--primary-glow); color: var(--primary); border-color: rgba(99, 102, 241, 0.3); }
+  
+  .settings-content { flex: 1; display: flex; flex-direction: column; gap: 32px; }
+  .settings-panel { display: none; animation: fadeIn 0.4s ease; }
+  .settings-panel.active { display: block; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .logo-preview-wrapper { 
+    width: 120px; 
+    height: 120px; 
+    border-radius: var(--radius-lg); 
+    border: 2px dashed var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(0,0,0,0.2);
+    margin-bottom: 16px;
+    position: relative;
+    cursor: pointer;
+  }
+  .logo-preview-wrapper img { width: 100%; height: 100%; object-fit: contain; }
+  .logo-preview-wrapper:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.05); }
+  .logo-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+  .db-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 20px; }
+  .db-stat-item { background: rgba(255,255,255,0.03); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+  .db-stat-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+  .db-stat-value { font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 4px; }
+
+  .about-banner {
+    background: linear-gradient(135deg, var(--primary), #a855f7);
+    padding: 40px;
+    border-radius: var(--radius-lg);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 10px 30px var(--primary-glow);
+  }
+  .about-logo { font-size: 64px; }
+  .about-info h2 { font-size: 28px; margin-bottom: 4px; letter-spacing: -0.5px; }
+  .about-info p { opacity: 0.9; font-size: 14px; }
+
+  .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+  .contact-item { display: flex; align-items: center; gap: 16px; padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+  .contact-icon { font-size: 24px; }
+  .contact-text .label { font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase; }
+  .contact-text .value { font-size: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>⚙ System Settings</h1>
+  </div>
+
+  <div class="settings-layout">
+    <!-- Navigation Tabs -->
+    <div class="settings-tabs">
+      <div class="settings-tab active" onclick="showPanel('general')"><span class="nav-icon">🏪</span> General</div>
+      <div class="settings-tab" onclick="showPanel('users')"><span class="nav-icon">👥</span> Users</div>
+      <div class="settings-tab" onclick="showPanel('appearance')"><span class="nav-icon">🎨</span> Appearance</div>
+      <div class="settings-tab" onclick="showPanel('database')"><span class="nav-icon">💾</span> Database</div>
+      <div class="settings-tab" onclick="showPanel('network')"><span class="nav-icon">🌐</span> Network</div>
+      <div class="settings-tab" onclick="showPanel('about')"><span class="nav-icon">ℹ</span> About</div>
+    </div>
+
+    <!-- Content Panels -->
+    <div class="settings-content">
+      
+      <!-- General Settings Panel -->
+      <div id="panel-general" class="settings-panel active">
+        <div class="glass-card">
+          <div class="card-title">Pharmacy Information</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Update your pharmacy details for receipts and reports.</p>
+          <div id="alertBasic" class="alert"></div>
+          
+          <div class="flex gap-4 items-start mb-4">
+            <div>
+              <label class="form-group label mb-2" style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Logo Preview</label>
+              <div class="logo-preview-wrapper" id="btnBrowse" title="Click to change logo">
+                <img id="logoPreview" src="" alt="+"/>
+              </div>
+              <p class="logo-hint">Recommended: Square PNG/JPG</p>
+            </div>
+            
+            <div style="flex:1" class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Pharmacy Name *</label>
+                <input type="text" id="txtPharmacyName" class="form-control" placeholder="Enter full pharmacy name"/>
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Address (Header)</label>
+                <input type="text" id="txtaddress" class="form-control" placeholder="Street, City, Phone"/>
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Receipt Message (Footer)</label>
+                <textarea id="txtdescription" class="form-control" rows="3" placeholder="Terms, conditions or greeting message..."></textarea>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex justify-end mt-4">
+            <button class="btn btn-primary" id="btnBasicSave">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Management Panel -->
+      <div id="panel-users" class="settings-panel">
+        <div class="glass-card">
+          <div class="card-title">User Accounts</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Create and manage system access roles.</p>
+          <div id="alertUser" class="alert"></div>
+          
+          <div class="form-grid">
+            <div class="form-group"><label>Username *</label><input type="text" id="txtUN" class="form-control" placeholder="Login ID"/></div>
+            <div class="form-group"><label>Password *</label><input type="password" id="txtPass" class="form-control" placeholder="Secret Key"/></div>
+            <div class="form-group">
+              <label>Role / Access Level</label>
+              <select id="cmbUT" class="form-control">
+                <option value="admin">Administrator (Full Access)</option>
+                <option value="user">Standard User (Limited)</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Phone Number</label><input type="text" id="txtUC" class="form-control" placeholder="Contact #"/></div>
+            <div class="form-group"><label>Identity (CNIC)</label><input type="text" id="txtCNIC" class="form-control" placeholder="00000-0000000-0"/></div>
+            <div class="form-group"><label>Residential Address</label><input type="text" id="txtUA" class="form-control" placeholder="Current address"/></div>
+          </div>
+          
+          <div class="flex gap-4 mt-4">
+            <button class="btn btn-primary" id="btnAdd">Add User</button>
+            <button class="btn btn-secondary" onclick="clearUserForm()">Clear Form</button>
+            <button class="btn btn-danger" id="btnDelete" style="margin-left: auto;">Delete Selected</button>
+          </div>
+          
+          <div class="table-wrapper mt-4">
+            <table class="dgv">
+              <thead><tr><th>ID</th><th>Username</th><th>Contact</th><th>CNIC</th><th>Role</th><th>Address</th></tr></thead>
+              <tbody id="userBody"></tbody>
+            </table>
+          </div>
+          
+          <div class="mt-4 p-4" style="background:var(--primary-glow); border-radius: var(--radius-md); border: 1px solid rgba(99, 102, 241, 0.2);">
+            <p style="font-size: 13px; font-weight: 600;">🔐 Master Admin Access</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Username: <code>hkuko</code> is the permanent root account. It cannot be modified or deleted and maintains full authority over the system.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Appearance Panel -->
+      <div id="panel-appearance" class="settings-panel">
+        <div class="glass-card">
+          <div class="card-title">Theme Mode</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Choose between Dark and Light visual styles.</p>
+          
+          <div class="dash-grid">
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent;" id="theme-dark" onclick="applyThemeChoice('dark')">
+              <div class="stat-label">High Contrast</div>
+              <div class="stat-value">🌙 Dark</div>
+              <div class="stat-footer">Modern & Sharp</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent;" id="theme-light" onclick="applyThemeChoice('light')">
+              <div class="stat-label">Clean View</div>
+              <div class="stat-value" style="color:var(--text-main)">☀ Light</div>
+              <div class="stat-footer">Professional & Bright</div>
+            </div>
+          </div>
+          
+          <div class="card-title" style="margin-top: 32px; margin-bottom: 8px;">Accent Color Palette</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Choose the accent color scheme for buttons, charts, and highlights.</p>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px;">
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-indigo" onclick="applyColorChoice('indigo')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌌</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #6366f1;">Indigo Strike</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-emerald" onclick="applyColorChoice('emerald')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌿</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #10b981;">Emerald Forest</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-cyber" onclick="applyColorChoice('cyber')">
+              <div style="font-size: 24px; margin-bottom: 8px;">⚡</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #f59e0b;">Cyber Orange</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-orchid" onclick="applyColorChoice('orchid')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌸</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #ec4899;">Sunset Orchid</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-ocean" onclick="applyColorChoice('ocean')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌊</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #0ea5e9;">Midnight Ocean</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-oceanic" onclick="applyColorChoice('oceanic')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🐬</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #0284c7;">Oceanic</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-grey" onclick="applyColorChoice('grey')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌑</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #94a3b8;">Shades of Grey</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-c8b6fe" onclick="applyColorChoice('c8b6fe')">
+              <div style="font-size: 24px; margin-bottom: 8px;">💜</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #C8B6FE;">Lavender</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-54acbf" onclick="applyColorChoice('54acbf')">
+              <div style="font-size: 24px; margin-bottom: 8px;">💎</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #54ACBF;">#54ACBF Calypso</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent; text-align: center; padding: 20px 10px;" id="color-minimal-green" onclick="applyColorChoice('minimal-green')">
+              <div style="font-size: 24px; margin-bottom: 8px;">🌱</div>
+              <div class="stat-label" style="font-size: 14px; font-weight: 700; color: #10b981;">Minimal Green</div>
+            </div>
+          </div>
+          
+          <div class="card-title" style="margin-top: 32px; margin-bottom: 8px;">Performance Optimization</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">If you are running this app on an older computer (e.g., Core 2 Duo or legacy hardware), enabling Legacy Mode disables animations, glass blurs, and shadows to guarantee pure smoothness and maximum speed.</p>
+          
+          <div class="dash-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent;" id="perf-modern" onclick="applyPerfChoice('modern')">
+              <div class="stat-label">Default Mode</div>
+              <div class="stat-value">✨ Modern Glossy</div>
+              <div class="stat-footer">Rich shadows, gradients, and blurs</div>
+            </div>
+            <div class="glass-card stat-card" style="cursor:pointer; border: 2px solid transparent;" id="perf-legacy" onclick="applyPerfChoice('legacy')">
+              <div class="stat-label">Recommended for Legacy PCs</div>
+              <div class="stat-value" style="color:var(--secondary)">⚡ Legacy Butter</div>
+              <div class="stat-footer">Pure solid fills, zero transitions, maximum FPS</div>
+            </div>
+          </div>
+          
+          <div id="themeStatus" style="margin-top:24px; text-align: center; font-weight: 700; color: var(--primary);"></div>
+        </div>
+      </div>
+
+      <!-- Database Panel -->
+      <div id="panel-database" class="settings-panel">
+        <div class="glass-card">
+          <div class="card-title">Data Safety & Backup</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Manage your database health and secure your information.</p>
+          <div id="alertBackup" class="alert"></div>
+          
+          <div id="dbStatsContainer">
+            <!-- Injected DB Stats -->
+          </div>
+          
+          <div class="flex gap-4 mt-4">
+            <button class="btn btn-primary" id="btnBackup" onclick="doBackup()">📥 Download Backup</button>
+            <button class="btn btn-warning" id="btnRestore" onclick="doRestore()">📤 Restore from File</button>
+          </div>
+          
+          <div id="netBackupWarning" style="display:none;" class="mt-4 p-4 alert-danger show">
+            ⚠ Database management is restricted to the Admin PC only.
+          </div>
+        </div>
+      </div>
+
+      <!-- Network Panel -->
+      <div id="panel-network" class="settings-panel">
+        <div class="glass-card">
+          <div class="card-title">Multi-Device Connectivity</div>
+          <p class="mb-4" style="color:var(--text-muted); font-size: 14px;">Connect multiple computers to the same pharmacy database over LAN.</p>
+          
+          <div class="flex items-center gap-4 p-8" style="background:rgba(255,255,255,0.03); border-radius:var(--radius-lg); border: 1px dashed var(--border-color);">
+            <div style="font-size:48px;">🌐</div>
+            <div style="flex:1;">
+              <h3 style="margin-bottom:8px;">LAN Synchronization</h3>
+              <p style="font-size:13px; color:var(--text-muted);">Configure this machine to act as a Server (Admin) or a Client (User) to sync data in real-time across your pharmacy.</p>
+            </div>
+            <button class="btn btn-primary" onclick="window.api.navigate('network')">Network Wizard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- About Panel -->
+      <div id="panel-about" class="settings-panel">
+        <div class="about-banner">
+          <div class="about-logo">💊</div>
+          <div class="about-info">
+            <h2>Pharmco Quantum</h2>
+            <p>Advanced Pharmacy Management Ecosystem</p>
+            <p style="margin-top:8px; opacity:0.7;">Version 2.0.0 "Indigo Strike"</p>
+            <p style="margin-top:8px;"><a href="mailto:hamdankaleem2007@gmail.com" style="color:#fff; text-decoration:underline;">hamdankaleem2007@gmail.com</a></p>
+          </div>
+        </div>
+        
+        <div class="glass-card">
+          <div class="card-title">Developer Information</div>
+          <div class="contact-grid">
+            <div class="contact-item">
+              <div class="contact-icon">🏢</div>
+              <div class="contact-text"><div class="label">Company</div><div class="value">HKUKO</div></div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">👨‍💻</div>
+              <div class="contact-text"><div class="label">Developer</div><div class="value">Hamdan Kaleem</div></div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">📞</div>
+              <div class="contact-text"><div class="label">WhatsApp</div><div class="value">+92 324 3441834</div></div>
+            </div>
+          </div>
+          
+          <div class="mt-8 p-4 text-center" style="border-top:1px solid var(--border-color); font-size:12px; color:var(--text-muted);">
+            © 2025 HKUKO Solutions. Designed with precision for modern healthcare.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('settings'); loadTopBar();
+let selectedUserId = null;
+let currentLogoB64 = '';
+
+function showPanel(id) {
+  document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  const clickedTab = Array.from(document.querySelectorAll('.settings-tab')).find(t => t.textContent.toLowerCase().includes(id));
+  if (clickedTab) clickedTab.classList.add('active');
+}
+
+async function loadSettings() {
+  const s = await window.api.getSettings();
+  document.getElementById('txtPharmacyName').value = s.pharmacyname||'';
+  document.getElementById('txtaddress').value = s.pharmacyaddress||'';
+  document.getElementById('txtdescription').value = s.pharmacydescription||'';
+  if (s.pharmacylogo) { document.getElementById('logoPreview').src = s.pharmacylogo; currentLogoB64 = s.pharmacylogo; }
+}
+
+async function loadUsers() {
+  const users = await window.api.getUsers();
+  buildTable('userBody', users, [{key:'id'},{key:'username'},{key:'usercontact'},{key:'usercnic'},{key:'usertype'},{key:'useraddress'}]);
+  document.getElementById('userBody').addEventListener('row-selected', e => { selectedUserId = e.detail.id; });
+}
+
+document.getElementById('btnBrowse').onclick = async () => {
+  const b64 = await window.api.browseImage();
+  if (b64) { currentLogoB64 = b64; document.getElementById('logoPreview').src = b64; }
+};
+
+document.getElementById('btnBasicSave').onclick = async () => {
+  const name = document.getElementById('txtPharmacyName').value.trim();
+  if (!name) { showAlert('alertBasic','Pharmacy name is required.'); return; }
+  await window.api.saveSetting({key:'pharmacyname',value:name});
+  await window.api.saveSetting({key:'pharmacyaddress',value:document.getElementById('txtaddress').value.trim()});
+  await window.api.saveSetting({key:'pharmacydescription',value:document.getElementById('txtdescription').value.trim()});
+  if (currentLogoB64) await window.api.saveSetting({key:'pharmacylogo',value:currentLogoB64});
+  showAlert('alertBasic','Pharmacy information synchronized!','success');
+};
+
+document.getElementById('btnAdd').onclick = async () => {
+  const username = document.getElementById('txtUN').value.trim();
+  const password = document.getElementById('txtPass').value;
+  if (!username || !password) { showAlert('alertUser','Credentials are required.'); return; }
+  const r = await window.api.addUser({ username, password, usertype:document.getElementById('cmbUT').value, usercontact:document.getElementById('txtUC').value.trim()||null, usercnic:document.getElementById('txtCNIC').value.trim()||null, useraddress:document.getElementById('txtUA').value.trim()||null });
+  if (r.success) { showAlert('alertUser','New user account created.','success'); clearUserForm(); loadUsers(); }
+  else showAlert('alertUser','Error: '+r.error);
+};
+
+document.getElementById('btnDelete').onclick = async () => {
+  if (!selectedUserId) { showAlert('alertUser','Please select a user record first.'); return; }
+  if (!confirm('Are you sure you want to terminate this user account?')) return;
+  await window.api.deleteUser(selectedUserId);
+  showAlert('alertUser','Account successfully removed.','success'); selectedUserId=null; loadUsers();
+};
+
+function clearUserForm() {
+  selectedUserId=null;
+  ['txtUN','txtPass','txtUC','txtCNIC','txtUA'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cmbUT').value='user';
+}
+
+loadSettings(); loadUsers(); loadDBInfo();
+
+async function loadDBInfo() {
+  const info = await window.api.getDBInfo();
+  const container = document.getElementById('dbStatsContainer');
+  const warn = document.getElementById('netBackupWarning');
+  
+  if (!info) {
+    container.innerHTML = '<div class="p-4" style="color:var(--danger)">Database metadata unavailable.</div>';
+    warn.style.display = 'block';
+    document.getElementById('btnBackup').disabled = true;
+    document.getElementById('btnRestore').disabled = true;
+    return;
+  }
+  
+  const sz = info.size > 1024*1024 ? (info.size/1024/1024).toFixed(2)+' MB' : (info.size/1024).toFixed(1)+' KB';
+  
+  container.innerHTML = `
+    <div class="db-stats">
+      <div class="db-stat-item"><div class="db-stat-label">File Size</div><div class="db-stat-value">${sz}</div></div>
+      <div class="db-stat-item"><div class="db-stat-label">Stock Items</div><div class="db-stat-value">${info.meds}</div></div>
+      <div class="db-stat-item"><div class="db-stat-label">Total Bills</div><div class="db-stat-value">${info.sales}</div></div>
+    </div>
+    <p style="font-size:11px; color:var(--text-muted); margin-top:16px;">System Path: ${info.path}</p>
+  `;
+}
+
+async function doBackup() {
+  const result = await window.api.backupDB();
+  if (result.success) showAlert('alertBackup', `Database backup secured to: ${result.path}`, 'success');
+  else showAlert('alertBackup', 'Backup process interrupted: ' + result.error);
+}
+
+async function doRestore() {
+  if (!confirm('CRITICAL: This will overwrite ALL current data with the selected backup file. Continue?')) return;
+  const result = await window.api.restoreDB();
+  if (result.success) {
+    alert('Restoration complete. System will now restart to apply changes.');
+    window.api.applyNetworkMode({ mode: 'local' });
+  } else {
+    showAlert('alertBackup', 'Restoration failed: ' + result.error);
+  }
+}
+
+function applyThemeChoice(theme) {
+  setTheme(theme);
+  document.getElementById('themeStatus').textContent = `System is now running in ${theme.toUpperCase()} mode.`;
+  updateThemeHighlight();
+  updateColorHighlight();
+}
+
+function applyColorChoice(color) {
+  setColorTheme(color);
+  document.getElementById('themeStatus').textContent = `System accent color updated to ${color.toUpperCase()}!`;
+  updateThemeHighlight();
+  updateColorHighlight();
+}
+
+function updateThemeHighlight() {
+  const cur = getTheme();
+  document.getElementById('theme-dark').style.borderColor = cur === 'dark' ? 'var(--primary)' : 'transparent';
+  document.getElementById('theme-light').style.borderColor = cur === 'light' ? 'var(--primary)' : 'transparent';
+}
+
+function updateColorHighlight() {
+  const curColor = getColorTheme();
+  ['indigo', 'emerald', 'cyber', 'orchid', 'ocean', 'oceanic', 'grey', 'c8b6fe', '54acbf', 'minimal-green'].forEach(c => {
+    const el = document.getElementById('color-' + c);
+    if (el) {
+      el.style.borderColor = curColor === c ? 'var(--primary)' : 'transparent';
+      el.style.boxShadow = curColor === c ? '0 0 10px var(--primary-glow)' : 'none';
+    }
+  });
+}
+
+function applyPerfChoice(mode) {
+  setPerfMode(mode);
+  document.getElementById('themeStatus').textContent = `System is now running in ${mode.toUpperCase()} performance mode.`;
+  updatePerfHighlight();
+}
+
+function updatePerfHighlight() {
+  const curPerf = getPerfMode();
+  document.getElementById('perf-modern').style.borderColor = curPerf === 'modern' ? 'var(--primary)' : 'transparent';
+  document.getElementById('perf-legacy').style.borderColor = curPerf === 'legacy' ? 'var(--primary)' : 'transparent';
+}
+
+setTimeout(() => {
+  updateThemeHighlight();
+  updateColorHighlight();
+  updatePerfHighlight();
+}, 100);
+</script>
+</body>
+</html>

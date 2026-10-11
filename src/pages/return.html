@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Return</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<style>
+  input[readonly].form-control { background:rgba(0,0,0,0.1); cursor:not-allowed; border-color: transparent; }
+</style>
+</head>
+<body>
+
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>↩ Product Return</h1>
+    <div class="flex gap-4" style="margin-left:auto;">
+      <span class="badge update-badge">F4: Print Receipt</span>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div id="alertMsg" class="alert"></div>
+    
+    <div class="form-grid mb-8">
+      <div class="form-group"><label>Return ID</label>
+        <input type="text" id="txtBillNo" class="form-control" readonly style="color:var(--primary);"/>
+      </div>
+      <div class="form-group"><label>Customer Details</label>
+        <input type="text" id="txtCusName" class="form-control" placeholder="Name / Mobile (Optional)"/>
+      </div>
+      <div class="form-group"><label>Return Date</label>
+        <input type="date" id="dtpDate" class="form-control"/>
+      </div>
+    </div>
+
+    <div class="table-wrapper" style="max-height:450px; border-radius: var(--radius-md); overflow-y: auto;">
+      <table class="dgv">
+        <thead>
+          <tr>
+            <th style="width:50px">Pos</th>
+            <th>Medicine Description</th>
+            <th style="width:120px; text-align:center;">Qty</th>
+            <th style="width:140px; text-align:right;">Refund Price</th>
+            <th style="width:140px; text-align:right;">Line Total</th>
+            <th style="width:60px"></th>
+          </tr>
+        </thead>
+        <tbody id="retBody"></tbody>
+      </table>
+    </div>
+
+    <div class="totals-grid">
+      <div class="total-item">
+        <label class="total-label">Gross Return Amount</label>
+        <input type="text" id="txtNA" class="form-control total-value-input" readonly style="color:var(--text-main);"/>
+      </div>
+      <div class="total-item">
+        <label class="total-label">Deduction (Rs)</label>
+        <input type="number" id="txtDis" class="form-control" placeholder="0.00" style="font-size: 18px; font-weight: 700;"/>
+      </div>
+      <div class="total-item" style="grid-column: span 1;">
+        <label class="total-label">Net Refund Payable</label>
+        <input type="text" id="txtTA" class="form-control total-value-input" readonly style="color:var(--secondary);"/>
+      </div>
+    </div>
+    
+    <div class="flex gap-4 mt-8 justify-end">
+        <button class="btn btn-secondary" onclick="doPrint()" style="padding: 16px 32px;">🖨 Print (F4)</button>
+        <button class="btn btn-primary" id="btnSave" style="padding: 16px 48px; min-width: 220px;">💾 Process Return</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('return');
+loadTopBar();
+
+let retItems       = [];
+let editingRow     = -1;
+let selectedRowIdx = -1;
+
+async function init() {
+  document.getElementById('txtBillNo').value = await window.api.getNextReturnBillNo();
+  document.getElementById('dtpDate').value   = todayStr();
+  addRow(false);
+  setTimeout(() => { const el=document.getElementById('qty_0'); if(el) el.focus(); }, 200);
+
+  registerMedicineSelectedListener(med => {
+    if (editingRow < 0 || editingRow >= retItems.length) return;
+    Object.assign(retItems[editingRow], {
+      medicineid:   med.id,
+      medicinename: med.medicinename,
+      salt:         med.salt || '',
+      saleprice:    med.saleprice
+    });
+    renderTable();
+    focusQty(editingRow);
+  });
+
+  // Global barcode scanner (capture phase) — same item scanned again → qty+1
+  let _bcBuf='',_bcTimer=null;
+  document.addEventListener('keydown', e => {
+    if (e.key==='Enter' && _bcBuf.length>=3) {
+      e.stopPropagation(); const code=_bcBuf.trim(); _bcBuf=''; clearTimeout(_bcTimer);
+      (async()=>{
+        const med=await window.api.getMedicineByBarcode(code);
+        if(!med){showAlert('alertMsg',`No medicine for barcode: ${code}`);return;}
+        const existing=retItems.find(i=>i.medicineid===med.id);
+        if(existing){existing.quantity=(parseFloat(existing.quantity)||0)+1;renderTable();showAlert('alertMsg',`"${med.medicinename}" qty → ${existing.quantity}`,'success');return;}
+        const emptyIdx=retItems.findIndex(i=>!i.medicineid);
+        const item={medicineid:med.id,medicinename:med.medicinename,salt:med.salt||'',saleprice:med.saleprice,quantity:1};
+        if(emptyIdx>=0){Object.assign(retItems[emptyIdx],item);renderTable();focusQty(emptyIdx);}
+        else{const idx=retItems.length;retItems.push(item);renderTable();focusQty(idx);}
+      })();
+      return;
+    }
+    if(e.key.length===1&&!e.ctrlKey&&!e.altKey){_bcBuf+=e.key;clearTimeout(_bcTimer);_bcTimer=setTimeout(()=>{_bcBuf='';},150);}
+  },true);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'F4') { e.preventDefault(); doPrint(); }
+    if (e.key === 'Escape' && selectedRowIdx >= 0) removeRow(selectedRowIdx);
+  });
+}
+
+function addRow(doFocus=true) {
+  const idx = retItems.length;
+  retItems.push({ medicineid:'', medicinename:'', salt:'', quantity:1, saleprice:'' });
+  renderTable();
+  if (doFocus) focusQty(idx);
+}
+
+function focusQty(idx) {
+  setTimeout(() => { const el = document.getElementById(`qty_${idx}`); if(el){el.focus();el.select();} }, 40);
+}
+
+function renderTable() {
+  const tbody = document.getElementById('retBody');
+  tbody.innerHTML = ''; selectedRowIdx = -1;
+  retItems.forEach((item, idx) => {
+    const qty = parseFloat(item.quantity)||1;
+    const sp  = parseFloat(item.saleprice)||0;
+    const lt  = qty * sp;
+    const tr  = document.createElement('tr');
+    tr.dataset.idx = idx;
+    tr.innerHTML = `
+      <td style="color:var(--text-muted); font-size:11px;">${idx+1}</td>
+      <td>
+        <div style="font-weight:700; color:var(--text-main)">${item.medicinename || '<span style="opacity:0.3; font-weight:400">Click to select...</span>'}</div>
+        <div style="font-size:10px; color:var(--primary); opacity:0.8; letter-spacing:0.5px">${item.salt || ''}</div>
+      </td>
+      <td>
+        <input type="number" id="qty_${idx}" class="form-control bill-qty" data-idx="${idx}"
+            style="padding:6px 8px; width:80px; font-weight:800; text-align:center; border-color:var(--primary-glow)" 
+            value="${qty}" min="1"/>
+      </td>
+      <td style="text-align:right">
+        <div style="font-weight:600; color:var(--text-main)">${sp>0?sp.toFixed(2):'0.00'}</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-weight:700; color:var(--secondary)" class="lt-cell">${lt>0?formatCurrency(lt):'0.00'}</div>
+      </td>
+      <td style="text-align:center">
+        <button class="btn btn-danger bill-del" data-idx="${idx}" 
+                style="padding:4px 8px; font-size:10px; min-width:unset; border-radius:6px" tabindex="-1">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  calcTotals();
+}
+
+let _delegationReady = false;
+function setupDelegation() {
+  if (_delegationReady) return; _delegationReady = true;
+  const tbody = document.getElementById('retBody');
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    if (e.target.matches('.bill-del')) { removeRow(parseInt(e.target.dataset.idx)); return; }
+    tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('selected'));
+    tr.classList.add('selected'); selectedRowIdx = parseInt(tr.dataset.idx);
+  });
+  tbody.addEventListener('keydown', e => {
+    const el = e.target; const idx = parseInt(el.dataset.idx);
+    if (el.matches('.bill-qty')) {
+      if (e.key==='Enter') {
+        e.preventDefault();
+        if (!retItems[idx]||!retItems[idx].medicineid) { editingRow=idx; window.api.openMedicineSelection(); return; }
+        retItems[idx].quantity = parseFloat(el.value)||1; calcTotals();
+        if (idx===retItems.length-1) addRow(true); else focusQty(idx+1);
+      }
+      if (e.key==='Escape') { e.preventDefault(); removeRow(idx); }
+    }
+  });
+  tbody.addEventListener('input', e => {
+    const el=e.target; const idx=parseInt(el.dataset.idx);
+    if (!retItems[idx]) return;
+    if (el.matches('.bill-qty')) retItems[idx].quantity  = parseFloat(el.value)||1;
+    const rows=tbody.querySelectorAll('tr');
+    if (rows[idx]) { 
+      const lc=rows[idx].querySelector('.lt-cell');
+      if(lc){ const lt=(parseFloat(retItems[idx].quantity)||0)*(parseFloat(retItems[idx].saleprice)||0); lc.textContent=lt>0?formatCurrency(lt):''; } 
+    }
+    calcTotals();
+  });
+}
+
+function calcTotals() {
+  let net=0; retItems.forEach(i=>{net+=(parseFloat(i.quantity)||0)*(parseFloat(i.saleprice)||0);});
+  document.getElementById('txtNA').value=formatCurrency(net);
+  const dis=parseFloat(document.getElementById('txtDis').value)||0;
+  document.getElementById('txtTA').value=formatCurrency(Math.max(0,net-dis));
+}
+document.getElementById('txtDis').addEventListener('input',calcTotals);
+
+function removeRow(idx) {
+  const med=retItems[idx];
+  if(med&&med.medicinename&&!confirm(`Remove "${med.medicinename}"?`)) return;
+  retItems.splice(idx,1); selectedRowIdx=-1;
+  if(retItems.length===0) addRow(true); else renderTable();
+}
+
+async function doPrint() {
+  const valid=retItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','No items.','warning');return;}
+  const [settings,user]=[await window.api.getSettings(),getSession()];
+  await window.api.printBill({type:'return',billno:document.getElementById('txtBillNo').value,items:valid,
+    header:{pharmacyname:settings.pharmacyname,logo:settings.pharmacylogo,address:settings.pharmacyaddress,description:settings.pharmacydescription,user:user.username,customer:document.getElementById('txtCusName').value},
+    totals:{netamount:parseFloat(document.getElementById('txtNA').value)||0,discount:parseFloat(document.getElementById('txtDis').value)||0,totalamount:parseFloat(document.getElementById('txtTA').value)||0}});
+}
+
+document.getElementById('btnSave').onclick = async () => {
+  const valid=retItems.filter(i=>i.medicineid&&i.quantity>0);
+  if(!valid.length){showAlert('alertMsg','Add at least one item.');return;}
+  const billno=document.getElementById('txtBillNo').value;
+  const customername=document.getElementById('txtCusName').value.trim()||null;
+  const returndate=document.getElementById('dtpDate').value;
+  const netamount=parseFloat(document.getElementById('txtNA').value)||0;
+  const discount=parseFloat(document.getElementById('txtDis').value)||0;
+  const totalamount=parseFloat(document.getElementById('txtTA').value)||0;
+  const result=await window.api.saveReturnBill({items:valid,billno,customername,returndate,netamount,discount,totalamount});
+  if(!result.success){showAlert('alertMsg',result.error||'Save failed.');return;}
+  if(confirm('Return processed successfully! Print receipt?')) await doPrint();
+  retItems=[];
+  document.getElementById('txtCusName').value='';
+  document.getElementById('txtDis').value='';
+  document.getElementById('txtBillNo').value=await window.api.getNextReturnBillNo();
+  document.getElementById('dtpDate').value=todayStr();
+  addRow(true);
+};
+
+init().then(()=>setupDelegation());
+</script>
+</body>
+</html>

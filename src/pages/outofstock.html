@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Out of Stock</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+</head>
+<body>
+<div class="win-titlebar" id="winTitlebar">
+  <span class="win-title-label" id="winPhName">Pharmco</span>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.winMinimize()" title="Minimize">&#8211;</button>
+    <button class="win-btn maximize" id="winMaxBtn" onclick="toggleMax()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn close" onclick="window.api.winClose()" title="Close">&#10005;</button>
+  </div>
+</div>
+<script>
+async function toggleMax(){
+  window.api.winMaximize();
+  setTimeout(async()=>{
+    const m=await window.api.winIsMaximized();
+    const btn=document.getElementById('winMaxBtn');
+    if(btn)btn.innerHTML=m?'&#10697;':'&#9633;';
+  },80);
+}
+</script>
+<div class="topbar">
+  <img id="picPharmcoLogo" class="logo-img" src="" alt="💊"/>
+  <div class="pharmacy-name" id="lblPharmcoName">Pharmco</div>
+  <div class="topbar-right">
+    <span class="lbl-user" id="lblUser"></span>
+    <span class="lbl-dt" id="lblDT"></span>
+    <button class="icon-btn" id="picSettings">⚙</button>
+    <button class="icon-btn" id="picLogout">⏻</button>
+  </div>
+</div>
+<div class="page-body">
+  <div class="page-header">
+    <button class="btn" onclick="window.api.navigate('dashboard')">Dashboard</button>
+    <h1>🚫 Out of Stock</h1>
+  </div>
+
+  <div class="glass-card">
+    <div class="flex justify-between items-center mb-8">
+      <div class="card-title" style="margin-bottom:0">Out of Stock Medicines</div>
+      <div class="form-group" style="min-width:300px; margin-bottom:0">
+        <input type="text" id="txtSearch" class="form-control" placeholder="🔍 Search Name, Salt, or Barcode..."/>
+      </div>
+      <span id="countLabel" class="badge" style="background:var(--danger); color:var(--text-main);">0 Items</span>
+    </div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">The following medicines have zero quantity in stock.</p>
+    
+    <div class="table-wrapper">
+      <table class="dgv">
+        <thead>
+          <tr><th>ID</th><th>Medicine Name</th><th>Category</th><th>Supplier ID</th><th>Batch No</th><th>Expiry</th><th>Purchase Price</th><th>Sale Price</th></tr>
+        </thead>
+        <tbody id="ofsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="../js/common.js"></script>
+<script>
+requireAuthWithAccess('outofstock'); loadTopBar();
+
+async function loadOutOfStock(search='') {
+  const meds = await window.api.getOutOfStock(search);
+  buildTable('ofsBody', meds, [
+    {key:'id'},{key:'medicinename'},{key:'medicinecategory'},{key:'supplierid'},
+    {key:'batchno'},{key:'expiry'},{key:'purchaseprice'},{key:'saleprice'}
+  ]);
+  const badge = document.getElementById('countLabel');
+  badge.textContent = `${meds.length} Item(s)`;
+}
+
+document.getElementById('txtSearch').addEventListener('input', e => loadOutOfStock(e.target.value));
+loadOutOfStock();
+</script>
+</body>
+</html>

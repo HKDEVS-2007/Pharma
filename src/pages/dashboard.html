@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Pharmco – Dashboard</title>
+<link rel="stylesheet" href="../css/style.css"/>
+<script>try{if(localStorage.getItem("pharmco_theme")==="dark")document.documentElement.classList.add("dark-pre");}catch(e){}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<style>
+  .dash-panel {
+    cursor: pointer;
+    text-align: center;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dash-panel:hover {
+    background: var(--primary-glow);
+    border-color: var(--primary);
+    transform: translateY(-8px);
+    box-shadow: 0 10px 25px var(--primary-glow);
+  }
+  .dash-icon { font-size: 32px; }
+  .dash-label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .dash-panel:hover .dash-label { color: var(--primary); }
+  .dash-panel:hover .dash-icon { transform: scale(1.2); transition: transform 0.3s; }
+  
+  .greeting-container { margin-bottom: 32px; }
+  .greeting-text { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+</style>
+</head>
+<body>
+<!-- Titlebar and Navigation are injected by common.js -->
+
+<div class="page-body">
+  <div class="greeting-container flex justify-between items-end">
+    <div>
+      <div id="dayGreeting" style="font-size:14px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;"></div>
+      <div class="greeting-text">Welcome back, <span id="lblUserName" style="color:var(--primary)">Operator</span></div>
+    </div>
+  </div>
+
+  <!-- Master admin on client PC banner -->
+  <div id="clientAdminBanner" class="glass-card mb-4" style="display:none; align-items:center; gap:24px; border-left: 6px solid var(--primary); padding: 32px;">
+    <div style="font-size:40px; background:var(--primary-glow); width:80px; height:80px; border-radius:20px; display:flex; align-items:center; justify-content:center;">🔑</div>
+    <div style="flex:1;">
+      <div style="color:var(--primary); font-size:20px; font-weight:800; margin-bottom:4px;">Master Admin Protocol</div>
+      <div style="font-size:14px; color:var(--text-muted);">You are operating from a <b>Client Terminal</b> with full <b>hkuko</b> authority. All system overrides are active.</div>
+    </div>
+    <div class="flex gap-4">
+      <button class="btn btn-primary" onclick="window.api.navigate('network')">Network</button>
+      <button class="btn btn-secondary" onclick="window.api.navigate('settings')">Settings</button>
+    </div>
+  </div>
+
+
+
+  <!-- Main Navigation Panels -->
+  <div id="adminPanels" class="mt-8">
+    <div class="nav-group-label" style="padding-left:0; margin-bottom:16px; font-size:12px;">Operational Management</div>
+    <div class="dash-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+      <div class="glass-card dash-panel" onclick="nav('sale')"><div class="dash-icon">🛒</div><div class="dash-label">New Sale</div></div>
+      <div class="glass-card dash-panel" onclick="nav('salesummary')"><div class="dash-icon">📋</div><div class="dash-label">Sale Summary</div></div>
+      <div class="glass-card dash-panel" onclick="nav('purchase')"><div class="dash-icon">🏭</div><div class="dash-label">New Purchase</div></div>
+      <div class="glass-card dash-panel" onclick="nav('purchasesummary')"><div class="dash-icon">📦</div><div class="dash-label">Purchase Summary</div></div>
+      <div class="glass-card dash-panel" onclick="nav('return')"><div class="dash-icon">↩</div><div class="dash-label">New Return</div></div>
+      <div class="glass-card dash-panel" onclick="nav('returnsummary')"><div class="dash-icon">📄</div><div class="dash-label">Return Summary</div></div>
+      <div class="glass-card dash-panel" onclick="nav('medicines')"><div class="dash-icon">💊</div><div class="dash-label">Stock</div></div>
+      <div class="glass-card dash-panel" onclick="nav('salts')"><div class="dash-icon">🧪</div><div class="dash-label">Salts</div></div>
+      <div class="glass-card dash-panel" onclick="nav('categories')"><div class="dash-icon">🗂</div><div class="dash-label">Categories</div></div>
+      <div class="glass-card dash-panel" onclick="nav('suppliers')"><div class="dash-icon">🤝</div><div class="dash-label">Suppliers</div></div>
+      <div class="glass-card dash-panel" onclick="nav('outofstock')"><div class="dash-icon">🚫</div><div class="dash-label">Out of Stock</div></div>
+      <div class="glass-card dash-panel" onclick="nav('medicinehistory')"><div class="dash-icon">📜</div><div class="dash-label">History</div></div>
+      <div class="glass-card dash-panel" onclick="nav('patients')"><div class="dash-icon">🏥</div><div class="dash-label">Patients</div></div>
+      <div class="glass-card dash-panel" onclick="nav('reports')"><div class="dash-icon">📈</div><div class="dash-label">Reports</div></div>
+      <div class="glass-card dash-panel" onclick="nav('expiryalert')"><div class="dash-icon">⚠</div><div class="dash-label">Expiry</div></div>
+      <div class="glass-card dash-panel" onclick="nav('dailynotes')"><div class="dash-icon">📝</div><div class="dash-label">Daily Notes</div></div>
+    </div>
+  </div>
+
+  <!-- USER panels (limited) -->
+  <div id="userPanels" style="display:none;" class="mt-8">
+    <div class="glass-card mb-4" style="border-left: 6px solid var(--warning); padding: 24px;">
+      <div style="font-weight:700; color:var(--warning); margin-bottom:4px;">Limited Access Active</div>
+      <div style="font-size:13px; color:var(--text-muted);">You are logged in with restricted permissions. Access is limited to core sale and return functions.</div>
+    </div>
+    <div class="dash-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
+      <div class="glass-card dash-panel" onclick="nav('sale')"><div class="dash-icon">🛒</div><div class="dash-label">Quick Sale</div></div>
+      <div class="glass-card dash-panel" onclick="nav('salesummary')"><div class="dash-icon">📋</div><div class="dash-label">Sales History</div></div>
+      <div class="glass-card dash-panel" onclick="nav('return')"><div class="dash-icon">↩</div><div class="dash-label">Process Return</div></div>
+      <div class="glass-card dash-panel" onclick="nav('medicinehistory')"><div class="dash-icon">📜</div><div class="dash-label">Medicine History</div></div>
+      <div class="glass-card dash-panel" onclick="nav('dailynotes')"><div class="dash-icon">📝</div><div class="dash-label">Daily Notes</div></div>
+    </div>
+  </div>
+
+  <div class="glass-card mt-8" id="chartCard" style="padding: 40px;">
+    <div class="card-title" style="margin-bottom: 32px;">📊 Performance Analytics (Last 7 Days)</div>
+    <div style="height:350px;"><canvas id="chartSales"></canvas></div>
+  </div>
+</div>
+
+<script src="../js/common.js"></script>
+<script>
+const user = requireAuth();
+if (user) {
+  loadTopBar();
+  document.getElementById('lblUserName').textContent = user.username;
+  // Show master admin banner if hkuko logged in on client PC
+  (async () => {
+    if (user.username === 'hkuko') {
+      try {
+        const info = await window.api.getNetworkMode();
+        if (info.mode === 'network') {
+          const banner = document.getElementById('clientAdminBanner');
+          if (banner) banner.style.display = 'flex';
+        }
+      } catch(e) {}
+    }
+  })();
+  // Show panels based on role
+  if (user.usertype === 'admin') {
+    document.getElementById('adminPanels').style.display = 'block';
+    document.getElementById('userPanels').style.display = 'none';
+  } else {
+    document.getElementById('adminPanels').style.display = 'none';
+    document.getElementById('userPanels').style.display = 'block';
+  }
+  const hr = new Date().getHours();
+  document.getElementById('dayGreeting').textContent = hr<12?'Good Morning ☕':hr<17?'Good Afternoon 🌤':'Good Evening 🌙';
+}
+
+function nav(page) { window.api.navigate(page); }
+
+(async () => {
+  try {
+    const report = await window.api.getDayReport(todayStr());
+    const { sales, returns, chartRows } = report;
+    const net = (sales.ta||0) - (returns.total||0);
+
+
+    const reversed = [...(chartRows||[])].reverse();
+    const ctx = document.getElementById('chartSales').getContext('2d');
+
+    // Modern Gradient for Chart
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+    new Chart(ctx, {
+      type:'line',
+      data:{ 
+        labels:reversed.map(r=>r.saledate), 
+        datasets:[{ 
+          label:'Revenue (Rs)', 
+          data:reversed.map(r=>r.total), 
+          backgroundColor:gradient, 
+          borderColor:'#6366f1', 
+          borderWidth:4, 
+          fill:true,
+          tension: 0.4,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#6366f1',
+          pointBorderWidth: 3,
+          pointRadius: 6,
+          pointHoverRadius: 10
+        }] 
+      },
+      options:{ 
+        responsive:true, 
+        maintainAspectRatio:false, 
+        plugins:{
+          legend:{display:false},
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 14 },
+            padding: 16,
+            displayColors: false,
+            callbacks: {
+              label: (ctx) => `Rs ${ctx.raw.toLocaleString()}`
+            }
+          }
+        }, 
+        scales:{ 
+          y:{
+            beginAtZero:true,
+            grid:{color:'rgba(255,255,255,0.03)'},
+            ticks:{color:'rgba(255,255,255,0.4)', font:{size:11}}
+          }, 
+          x:{
+            grid:{display:false},
+            ticks:{color:'rgba(255,255,255,0.4)', font:{size:11}}
+          } 
+        } 
+      }
+    });
+  } catch(e) { console.error('Dashboard load error:', e); }
+})();
+</script>
+</body>
+</html>
